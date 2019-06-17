@@ -14,6 +14,9 @@
                 false ; little endian
                 ))
 
+
+
+
 (defn open-line [audio-format]
   "returns a line"
   (doto (AudioSystem/getLine (DataLine$Info. SourceDataLine audio-format))
@@ -58,6 +61,24 @@
          (map (partial take frameSize))
          (apply concat)
          byte-array)))
+
+(defn sine-bytes2 [freq]
+  (let [
+        sampleSizeInBits 16
+        frameSize 4
+        sampleRate 48000
+        bigEndian false
+        sample-size (/ sampleSizeInBits 8)
+        ampl (amplitude sampleSizeInBits)
+        tear (if bigEndian big-endian little-endian)]
+    (->> (sine sampleRate freq)
+         (map (partial quantize ampl))
+         (map (partial tear sample-size))
+         (map cycle)
+         (map (partial take frameSize))
+         (apply concat)
+         ;byte-array
+         )))
 
 (defn recalc-data [{:keys [line] :as state} freq]
   (assoc state :data (sine-bytes (.getFormat line) freq)))
@@ -111,25 +132,38 @@
 
 #_(def a (line-agent (open-line popular-format) 60))
 
-
-(def buffer-size 1024)
+(def buffer-size 128)
 (def player (agent 0))
 (def playing (atom true))
 
-(defn play-loop [line buffer buffer-size player is-playing]
+(defn a-synth [x f]
+  (int (* 602 (Math/sin (* x
+                           (+ 0.01 (/ 0.8 f) (* 0.000001
+                                              (Math/sin (* x 0.00016)))))))))
+
+(defn signal [x]
+  (repeat 2 (reduce + (map (partial a-synth x) (range 1 10 1)))))
+
+(defn build-buffer [sample-position]
+  (->> (range sample-position (+ sample-position buffer-size))
+       (mapcat signal)
+       (mapcat (partial little-endian 2))
+       byte-array))
+
+(defn play-loop [line buffer player is-playing]
   (when buffer
-    (send-off player (fn [sample-position]
-                           (.write line buffer 0 buffer-size)
-                           (+ sample-position buffer-size))))
+    (send player (fn [sample-position]
+                   (.write line buffer 0 (* 4 buffer-size))
+                   (+ sample-position buffer-size))))
   (let [new-buffer (if is-playing
-                     (byte-array (repeatedly buffer-size #(rand-int 256)))
+                     (build-buffer @player)
                      (Thread/sleep 10))]
     (await player)
-    (recur line new-buffer buffer-size player @playing)))
+    (recur line new-buffer player @playing)))
 
 (comment
   (do
-    (def thread (Thread. #(play-loop (open-line popular-format) nil buffer-size play-agent @playing)))
+    (def thread (Thread. #(play-loop (open-line popular-format) nil player @playing)))
     (.start thread))
   )
 
