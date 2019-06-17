@@ -15,6 +15,7 @@
                 ))
 
 (defn open-line [audio-format]
+  "returns a line"
   (doto (AudioSystem/getLine (DataLine$Info. SourceDataLine audio-format))
     (.open audio-format)
     (.start)))
@@ -106,6 +107,37 @@
     (change-freq agent (tone-freq (+ base-tone tone)))
     (Thread/sleep (* base-duration duration)))
   (pause agent))
+
+
+#_(def a (line-agent (open-line popular-format) 60))
+
+
+(def buffer-size 1024)
+(def player (agent 0))
+(def playing (atom true))
+
+(defn play-loop [line buffer buffer-size player is-playing]
+  (when buffer
+    (send-off player (fn [sample-position]
+                           (.write line buffer 0 buffer-size)
+                           (+ sample-position buffer-size))))
+  (let [new-buffer (if is-playing
+                     (byte-array (repeatedly buffer-size #(rand-int 256)))
+                     (Thread/sleep 10))]
+    (await player)
+    (recur line new-buffer buffer-size player @playing)))
+
+(comment
+  (do
+    (def thread (Thread. #(play-loop (open-line popular-format) nil buffer-size play-agent @playing)))
+    (.start thread))
+  )
+
+
+
+
+(comment
+  (play-melody a 70 400 mountain-king))
 
 (defn -main
   "I don't do a whole lot ... yet."
