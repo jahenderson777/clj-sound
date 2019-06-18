@@ -1,6 +1,5 @@
 (ns clj-sound.core
-  (:import (javax.sound.sampled AudioSystem DataLine$Info SourceDataLine
-                                AudioFormat AudioFormat$Encoding))
+  (:import (javax.sound.sampled AudioSystem DataLine$Info SourceDataLine AudioFormat AudioFormat$Encoding))
   (:gen-class))
 
 (def audio-format
@@ -44,9 +43,9 @@
 
 (defn play-loop [line buffer player is-playing]
   (when buffer
-    (send player (fn [sample-position]
-                   (.write line buffer 0 (* 4 buffer-size))
-                   (+ sample-position buffer-size))))
+    (send-off player (fn [sample-position]
+                       (.write line buffer 0 (* 4 buffer-size))
+                       (+ sample-position buffer-size))))
   (let [new-buffer (if is-playing
                      (build-buffer @player)
                      (Thread/sleep 10))]
