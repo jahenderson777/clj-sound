@@ -69,6 +69,8 @@ at https://www.gnu.org/software/classpath/license.html.
   (-> (Math/pow 2 (/ x 11)) (* 440) (/ 512)))
   
 https://github.com/josephwilk/finger-smudge/blob/master/src/finger_smudge/fft.clj
-g
+
+https://github.com/generateme/fastmath
+
 
 ```
