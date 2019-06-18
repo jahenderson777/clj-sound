@@ -1,7 +1,6 @@
 (ns clj-sound.core
-  (:require [fn-fx.fx-dom :as dom]
-            [fn-fx.controls :as ui]
-            [fn-fx.diff :refer [component defui render should-update?]])
+  (:require [fastmath.core :as m]
+            [clj-sound.ui :as ui])
   (:import (javax.sound.sampled AudioSystem DataLine$Info SourceDataLine AudioFormat AudioFormat$Encoding))
   (:gen-class))
 
@@ -15,9 +14,11 @@
                 false ; little endian
                 ))
 
-(def buffer-size 0)
+(def buffer-size 256)
 (def player (agent 0))
-(def playing (atom true))
+
+(def db (atom {:playing false
+               :radius 50}))
 
 (defn unsigned-byte [x]
   (byte (if (> x 127) (- x 256) x)))
@@ -29,14 +30,63 @@
        (range size)))
 
 (defn a-synth [x f]
-  (int (* 602 (Math/sin (* x
-                           (+ 0.01 (/ 0.2 f) (* 0.0003
-                                              (Math/sin (* x 0.0016)))))))))
+  (int (* 302 (m/qsin (* x
+                           (+ 0.01 (/ 0.2 f) (* 0.00003
+                                              (m/qsin (* x 0.00016)))))))))
+
+
+(def db {
+
+         :tracks {1 {:instrument :sampler
+                     :sample "drum.wav"
+                     :volume-env-decay 1}}})
+
+
+(defn resets [k track x]
+  (when (= 0 (mod x 50))
+    11))
+
+(defn volume-env [track x delta]
+  (if (nil? delta)
+    [x (double (/ 1 (* x (get-in db [:tracks track :volume-env-decay]))))]
+    (let [ret
+          (if-let [reset-env-pos (resets :volume-env track (+ x delta))]
+            (volume-env track reset-env-pos nil)
+            (when-let [[env-pos y] (volume-env track x (dec delta))]
+              (volume-env track (inc env-pos) nil)))]
+      (if (zero? delta)
+        (second ret)
+        ret))))
+
+(defn sampler [track x delta]
+  (when (> delta -10000)
+    (let [getv (fn [sub-track]
+                 (or (resets track sub-track (+ x delta))
+                     (when-let [y (sub-track track x (dec delta))]
+                       (sub-track track (inc y)))))
+
+          vol (volume-env track x delta)
+
+          vol (or (vol-env-resets (+ x delta))
+                  (when-let [y (vol-trk x (dec delta))]
+                    (source-vol-env (inc y))))
+
+          note (or (note-resets (+ x delta))
+                   (note-trk x (dec delta)))
+
+          pitch (or (pitch-resets (+ x delta))
+                    (when-let [y (pitch-trk x (dec delta))]
+                      (source-pitch-env (inc y))))
+
+          sample-pos (or (sample-pos-resets (+ x delta))
+                         (when-let [y (sample-pos-trk (dec delta))]
+                           (source-sample (+ y (/ 1 pitch)))))])))
 
 (defn signal [x]
-  (repeat 2 (+ (reduce + (map (partial a-synth x) (range 1 10 2)))
-               (* 0.01231 (signal (- x 2)))
-               (* 0.03231 (signal (- x 3))))))
+  (repeat 2 (+ (reduce + (map (partial a-synth x) (range 1 50 1)))
+               ;(* 0.01231 (signal (- x 2)))
+               ;(* 0.03231 (signal (- x 3)))
+               )))
 
 (defn build-buffer [sample-position]
   (->> (range sample-position (+ sample-position buffer-size))
@@ -46,94 +96,37 @@
 
 (defn play-loop [line buffer player is-playing]
   (when buffer
-    (send-off player (fn [sample-position]
-                       (.write line buffer 0 (* 4 buffer-size))
-                       (+ sample-position buffer-size))))
-  (let [new-buffer (if is-playing
-                     (build-buffer @player)
-                     (Thread/sleep 10))]
-    (await player)
-    (recur line new-buffer player @playing)))
+    (send player (fn [sample-position]
+                   (.write line buffer 0 (* 4 buffer-size))
+                   (+ sample-position buffer-size))))
+  (when is-playing
+    (let [new-buffer (build-buffer @player)]
+      (await player)
+      (recur line new-buffer player (:playing @db)))))
 
 (defn start-audio []
   (def thread (Thread. #(play-loop
                          (doto (AudioSystem/getLine (DataLine$Info. SourceDataLine audio-format))
                            (.open audio-format)
                            (.start))
-                         nil player @playing)))
+                         nil player (:playing @db))))
   (.start thread))
 
-(defui MyCircle
-  (render [this {:keys [radius]}]
-          (ui/circle
-           :center-x 20
-           :center-y 20
-           :radius (double radius))))
-
-(defui Stage
-  (render [this args]
-          (ui/stage
-           :title "Hello World!"
-           :shown true
-           :min-width 300
-           :min-height 300
-           :scene (ui/scene
-                   :root (ui/stack-pane
-                          :children [(my-circle args)
-                                     (ui/button
-                                      :text "Change radius"
-                                      :on-action {:event :change-color}
-                                      )
-                                     ])))))
+(add-watch db :play-stop
+           (fn [k db old-db new-db]
+             (when (and (not (:playing old-db))
+                      (:playing new-db))
+               (start-audio))))
 
 
-(def data-state (atom {:radius 50}))
 
-(defmulti handle-event (fn [state event]
-                         (:event event)))
+(comment
+  (doall (for [i (range 1000)] (do (Thread/sleep 5) (swap! data-state assoc :radius (rand-int 2000)))))
+  (ui/ui db)
 
-(defmethod handle-event :change-color
-  [state {:keys []}]
-  (assoc state :radius (rand-int 200)))
+  )
 
-#_(doall (for [i (range 1000)] (do (Thread/sleep 5) (swap! data-state assoc :radius (rand-int 2000)))))
 
-(defn ui []
-  (let [;; handler-fn handles events from the ui and updates the data state
-        handler-fn (fn [event]
-                     (try
-                       (swap! data-state handle-event event)
-                       (catch Throwable ex
-                         (println ex))))
-
-        ;; ui-state holds the most recent state of the ui
-        ui-state   (agent (dom/app (stage @data-state) handler-fn))]
-
-    ;; Every time the data-state changes, queue up an update of the UI
-    (add-watch data-state :ui (fn [_ _ _ _]
-                                (send ui-state
-                                      (fn [old-ui]
-                                        (try
-                                          (dom/update-app old-ui (stage @data-state))
-                                          (catch Throwable ex
-                                            (println ex)))))))))
-
-#_(defn ui []
-  (let [u (ui/stage
-           :title "Hello World!"
-           :shown true
-           :min-width 300
-           :min-height 300
-           :scene (ui/scene
-                   :root (ui/stack-pane
-                          :children [
-                                     (ui/button
-                                      :text "Say 'Hello World'"
-                                      :on-action {:say "Hello World!"}
-                                      )])))
-        handler-fn (fn [evt]
-                     (println "Received Event: " evt))]
-    (dom/app u handler-fn)))
 
 (defn -main
   [& args]
