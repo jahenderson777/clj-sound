@@ -63,35 +63,159 @@
 (defn t-pos [db f-sym t x]
   ;(println "t-pos" f-sym t x)
   (when (pos? x)
-    (or ((get-in db [:tracks t f-sym :resets]) x)
+    (or (when-let [r (get-in db [:tracks t f-sym :resets])]
+          (r x))
         (when-let [y (t-pos db f-sym t (dec x))]
           (inc y)))))
 
-(defn << [db f-sym t x]
-  ;(println "<<" f-sym t x)
-  (when-let [y (t-pos db f-sym t x)]
-    ((resolve f-sym) db t y)))
+(defn << [db t x]
+                                        ;(println "<<" f-sym t x)
+  (let [f-sym (get-in db [:tracks t :instrument])]
+    (when-let [y (t-pos db f-sym t x)]
+      ((resolve f-sym) db t y))))
 
-(def db {:tracks {12 {:instrument 'my-synth
-                      :sample "drum.wav"
-                      'sine-wave {:resets {10 0
-                                          20 0}}
+(def db {:tracks {:out {:components {10 :foo}}
+
+                  'my-synth {}
+
+                  12 {:instrument 'my-synth
+                      'sine-wave {:resets {0 0
+                                           7 0
+                                          14 0}}
                       'volume-env {:decay 1
-                                   :resets {10 0
-                                            20 0}}}}})
+                                   :resets {0 0
+                                            7 0
+                                            14 2}}}
 
-(defn volume-env [db t x]
-  (double (/ 1 (inc (* x (get-in db [:tracks t 'volume-env :decay]))))))
+                  13 {:instrument 'track-player
+                      'track-player {:track-to-play 12
+                                     :resets {4 0
+                                              27 0}}}}})
 
-(defn sine-wave [db t x]
-  (Math/sin x))
+(def db {'track-1 })
+
+(defn volume-env [x decay]
+  (double (/ 1 (inc (* x decay)))))
+
+(defn sine-wave [x freq]
+  (Math/sin (* x freq)))
+
+(defn my-synth [x decay freq]
+  (* (volume-env x decay)
+     (sine-wave x freq)))
+
+(defn track-1 [x]
+  (let [resets {0 0
+                10 0
+                20 2}]
+    ))
 
 (defn my-synth [db t x]
   (* (or (<< db 'sine-wave t x) 0)
      (or (<< db 'volume-env t x)
          0)))
 
+;; samples, tracks, instruments, envelopes, effects are all ugens
+;; they are all functions of time returning a sample value (f [x & args] y)
+;; they all have parameters (signal inputs) that can be automated by other ugens
+;; the ugen function can compose other ugens
+;; their outputs can all be visualized as a waveform in the ui
+;; [note events on a track] is also a ugen function even if it is a map
+;; ugens are always 'playing' at a certain rate (default 1). Playing means that their position increases by their rate as each sample progresses.
+;; ugen position and rate can be set by events
+;; ugen instances? how do they work?
+;; the main output ugen is called 'out'.
+;; the active ugens at a particular sample point must be calculable from the sample position,
+;; ... so how to do this?
+;; call (out 123) and you get a graph of ugens, ugens can spawn more ugens
+;; so ugen function, in addition to returning the sample value at that point needs to return any new ugens that have been spawned
 
+(defn lp-filter [x input cutoff]
+  [(+ (* (input x))
+      (* (input (- x 1)) 0.123)
+      (* (input (- x 2)) -0.123))])
+
+(defugen track-1 [x]
+  (lp-filter x
+             (fn [x] (* (saw-wave x 440)
+                       (volume-env x)))
+             1000)
+  [lp-filter ]
+  [saw-wave 0 440]
+  [volume-env 0 12])
+
+(defugen track-1 [x]
+  (lp-filter x
+             (* (saw-wave x 440)
+                (volume-env x))
+             1000)
+  [lp-filter ]
+  [saw-wave 0 440]
+  [volume-env 0 12])
+
+
+(defn bass-drum [x]
+  (* (volume-env x 1)
+     1))
+
+(defn track-1 [x & [volume & inputs]]
+  (println "track1" x volume inputs)
+  (into [(* volume
+            (apply + inputs))]
+        (case (mod x 32)
+          0 [['bass-drum 0]]
+          nil)))
+
+(defn run-ugen [ugen x & args]
+  (let [[y & ugens] (apply ugen x args)
+        processed-ugens (map (fn [[ugen & args]]
+                               (apply ugen args))
+                             ugens)]
+    (if (seq? ugens)
+      (apply ugen x (concat args processed-ugens))
+      y)))
+
+;; if a ugen returns a value it is a simple ugen like a sine osc.
+
+[[bass-drum 0]
+ [hihat 0]]
+
+[[volume-env 0 10]
+ [pitch-env 0]
+ [sample 0 "pad.wav" 1.0]]
+
+(defn another-synth [x & [vol pitch samp]]
+  ())
+
+(defn out [x]
+  (when (= 0 x)
+    [(* (master-volume x)
+        (+ track-1 x)
+        (+ track-2 x)
+        (+ track-3 x))
+
+     [master-volume]
+     [track-1]
+     [track-2]
+     [track-3]]))
+
+
+(def db {:next-id 0
+         :static-ugens {0 [out 0]}
+         :transient-ugens {}})
+
+(defn synth-b [db x]
+  (when (= 0 x)
+    ()))
+
+
+
+
+(defn track-player [db t x]
+  (let [track-to-play (get-in db [:tracks t 'track-player :track-to-play])
+        instr (get-in db [:tracks track-to-play :instrument])]
+    (when-let [y (t-pos db 'track-player t x)]
+      ((resolve instr) db track-to-play y))))
 
 
 (defn sampler [track x delta]
