@@ -35,11 +35,7 @@
                                               (m/qsin (* x 0.00016)))))))))
 
 
-(def db {
 
-         :tracks {1 {:instrument :sampler
-                     :sample "drum.wav"
-                     :volume-env-decay 1}}})
 
 
 (defn resets [k track x]
@@ -57,6 +53,46 @@
       (if (zero? delta)
         (second ret)
         ret))))
+
+
+
+
+
+
+
+(defn t-pos [db f-sym t x]
+  ;(println "t-pos" f-sym t x)
+  (when (pos? x)
+    (or ((get-in db [:tracks t f-sym :resets]) x)
+        (when-let [y (t-pos db f-sym t (dec x))]
+          (inc y)))))
+
+(defn << [db f-sym t x]
+  ;(println "<<" f-sym t x)
+  (when-let [y (t-pos db f-sym t x)]
+    ((resolve f-sym) db t y)))
+
+(def db {:tracks {12 {:instrument 'my-synth
+                      :sample "drum.wav"
+                      'sine-wave {:resets {10 0
+                                          20 0}}
+                      'volume-env {:decay 1
+                                   :resets {10 0
+                                            20 0}}}}})
+
+(defn volume-env [db t x]
+  (double (/ 1 (inc (* x (get-in db [:tracks t 'volume-env :decay]))))))
+
+(defn sine-wave [db t x]
+  (Math/sin x))
+
+(defn my-synth [db t x]
+  (* (or (<< db 'sine-wave t x) 0)
+     (or (<< db 'volume-env t x)
+         0)))
+
+
+
 
 (defn sampler [track x delta]
   (when (> delta -10000)
