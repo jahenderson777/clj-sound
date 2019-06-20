@@ -7,6 +7,8 @@
                                         ;[org.clojure/core.async "0.4.500"]
                  [fn-fx/fn-fx-javafx "0.5.0-SNAPSHOT"]
                  [generateme/fastmath "1.2.0"]
+                 [org.clojure/data.int-map "0.2.4"]
+                 [org.clojure/data.avl "0.1.0"]
                  ;[fn-fx/fn-fx-openjfx11 "0.5.0-SNAPSHOT"]
                  ]
   :main ^:skip-aot clj-sound.core

@@ -1,6 +1,8 @@
 (ns clj-sound.core
   (:require [fastmath.core :as m]
-            [clj-sound.ui :as ui])
+            [clj-sound.ui :as ui]
+            [clojure.data.int-map :as i]
+            [clojure.data.avl :as avl])
   (:import (javax.sound.sampled AudioSystem DataLine$Info SourceDataLine AudioFormat AudioFormat$Encoding))
   (:gen-class))
 
@@ -92,7 +94,7 @@
                                      :resets {4 0
                                               27 0}}}}})
 
-(def db {'track-1 })
+;(def db {'track-1 })
 
 (defn volume-env [x decay]
   (double (/ 1 (inc (* x decay)))))
@@ -130,12 +132,84 @@
 ;; call (out 123) and you get a graph of ugens, ugens can spawn more ugens
 ;; so ugen function, in addition to returning the sample value at that point needs to return any new ugens that have been spawned
 
+;; sequence everything in edn
+;; each ugen can either be a constant value,
+;; a function, of (f [x] y)
+;; or an avl/sorted-map in which case, we interpolate any value that is not in the map
+;; ugen signal inputs are regular function inputs (f [instance-id x freq amp filter] ...)
+;; ugen outputs are either a single value, for single output. or a vector of outputs.
+
+;; how are ugens wired up? by data? or by code? or both somehow?
+
+'{:bass-drum [aux-send
+              [drum-synth
+               {0 1 50 0.5 100 0}       ; volume env
+               {0 2 100 0.2}            ; pitch env
+               [sine-wave 0.001]        ; filter lfo
+               ]
+              :bus/main-reverb
+              ]
+  :clap [sampler "clap.wav"]
+  :bongo [aux-send
+          [drum-synth
+           {0 1 50 0.5 100 0}           ; volume env
+           {0 12 100 10.2}              ; pitch env
+           [sine-wave 0.001]            ; filter
+           ]
+          :bus/main-reverb]
+  :hihat [white-noise
+          {0 1 40 0}                    ; volume env
+          ]
+  :filtered-hihat [hp-filter
+                   [:hihat]
+                   {0 200 40 220}       ; freq
+                   :1                   ; q, expose as first parameter
+                   ]
+  :bass-synth [lp-filter
+               [saw-tooth
+                {0 1 100 0}
+                100]
+               {0 :1 100 0.1}
+               0.7]
+  :short-drum-loop [compressor
+                    [reverb
+                     [0 [multiplier [:bass-drum] 2]
+                      250 [:filtered-hihat 0.7]
+                      500 [:hihat]
+                      750 [:bongo]
+                      1000 [:bass-drum]
+                      1000 [:clap]
+                      1250 [:bass-synth :1]]]]
+  :pulse-env {0 1 100 0}
+  :monophonic-bass-line [multiplier
+                         [0 0
+                          250 [:pulse-env]
+                          500 [:pulse-env]
+                          750 [:pulse-env]] ; vol
+                         [lp-filter
+                          [saw-tooth 1
+                           [0 33
+                            250 66
+                            500 33
+                            750 99]]
+                          :1
+                          :midi/cc.10]]
+  :bass-line-track [repeat
+                    [:monophonic-bass-line [sine-wave 0.0000001]]
+                    1000]
+  :out [0 [:bass-line-track]
+        0 [repeat [:short-drum-loop [sine-wave 0.00001]] 1000]
+        0 [reverb :bus/main-reverb]]}
+
+
+
+
 (defn lp-filter [x input cutoff]
   [(+ (* (input x))
       (* (input (- x 1)) 0.123)
       (* (input (- x 2)) -0.123))])
 
-(defugen track-1 [x]
+#_(defugen track-1 [x]
   (lp-filter x
              (fn [x] (* (saw-wave x 440)
                        (volume-env x)))
@@ -144,7 +218,7 @@
   [saw-wave 0 440]
   [volume-env 0 12])
 
-(defugen track-1 [x]
+#_(defugen track-1 [x]
   (lp-filter x
              (* (saw-wave x 440)
                 (volume-env x))
@@ -166,81 +240,90 @@
           0 [['bass-drum 0]]
           nil)))
 
-(defn run-ugen [ugen x & args]
+#_(defn run-ugen [ugen x & args]
   (let [[y & ugens] (apply ugen x args)
         processed-ugens (map (fn [[ugen & args]]
                                (apply ugen args))
                              ugens)]
-    (if (seq? ugens)
+    (if (s
+         eq? ugens)
       (apply ugen x (concat args processed-ugens))
       y)))
 
 ;; if a ugen returns a value it is a simple ugen like a sine osc.
+(comment
+  [[bass-drum 0]
+   [hihat 0]]
 
-[[bass-drum 0]
- [hihat 0]]
+  [[volume-env 0 10]
+   [pitch-env 0]
+   [sample 0 "pad.wav" 1.0]]
 
-[[volume-env 0 10]
- [pitch-env 0]
- [sample 0 "pad.wav" 1.0]]
-
-(defn another-synth [x & [vol pitch samp]]
-  ())
-
-(defn out [x]
-  (when (= 0 x)
-    [(* (master-volume x)
-        (+ track-1 x)
-        (+ track-2 x)
-        (+ track-3 x))
-
-     [master-volume]
-     [track-1]
-     [track-2]
-     [track-3]]))
+  (defn another-synth [x & [vol pitch samp]]
+    ())
 
 
-(def db {:next-id 0
-         :static-ugens {0 [out 0]}
-         :transient-ugens {}})
-
-(defn synth-b [db x]
-  (when (= 0 x)
-    ()))
+  {:volume {0 1
+            10 0.5
+            20 0.25
+            30 1}
+   :reverb 1}
 
 
+  (defn out [x]
+    (when (= 0 x)
+      [(* (master-volume x)
+          (+ track-1 x)
+          (+ track-2 x)
+          (+ track-3 x))
+
+       [master-volume]
+       [track-1]
+       [track-2]
+       [track-3]]))
 
 
-(defn track-player [db t x]
-  (let [track-to-play (get-in db [:tracks t 'track-player :track-to-play])
-        instr (get-in db [:tracks track-to-play :instrument])]
-    (when-let [y (t-pos db 'track-player t x)]
-      ((resolve instr) db track-to-play y))))
+  (def db {:next-id 0
+           :static-ugens {0 [out 0]}
+           :transient-ugens {}})
+
+  (defn synth-b [db x]
+    (when (= 0 x)
+      ()))
 
 
-(defn sampler [track x delta]
-  (when (> delta -10000)
-    (let [getv (fn [sub-track]
-                 (or (resets track sub-track (+ x delta))
-                     (when-let [y (sub-track track x (dec delta))]
-                       (sub-track track (inc y)))))
 
-          vol (volume-env track x delta)
 
-          vol (or (vol-env-resets (+ x delta))
-                  (when-let [y (vol-trk x (dec delta))]
-                    (source-vol-env (inc y))))
+  (defn track-player [db t x]
+    (let [track-to-play (get-in db [:tracks t 'track-player :track-to-play])
+          instr (get-in db [:tracks track-to-play :instrument])]
+      (when-let [y (t-pos db 'track-player t x)]
+        ((resolve instr) db track-to-play y))))
 
-          note (or (note-resets (+ x delta))
-                   (note-trk x (dec delta)))
 
-          pitch (or (pitch-resets (+ x delta))
-                    (when-let [y (pitch-trk x (dec delta))]
-                      (source-pitch-env (inc y))))
+  (defn sampler [track x delta]
+    (when (> delta -10000)
+      (let [getv (fn [sub-track]
+                   (or (resets track sub-track (+ x delta))
+                       (when-let [y (sub-track track x (dec delta))]
+                         (sub-track track (inc y)))))
 
-          sample-pos (or (sample-pos-resets (+ x delta))
-                         (when-let [y (sample-pos-trk (dec delta))]
-                           (source-sample (+ y (/ 1 pitch)))))])))
+            vol (volume-env track x delta)
+
+            vol (or (vol-env-resets (+ x delta))
+                    (when-let [y (vol-trk x (dec delta))]
+                      (source-vol-env (inc y))))
+
+            note (or (note-resets (+ x delta))
+                     (note-trk x (dec delta)))
+
+            pitch (or (pitch-resets (+ x delta))
+                      (when-let [y (pitch-trk x (dec delta))]
+                        (source-pitch-env (inc y))))
+
+            sample-pos (or (sample-pos-resets (+ x delta))
+                           (when-let [y (sample-pos-trk (dec delta))]
+                             (source-sample (+ y (/ 1 pitch)))))]))))
 
 (defn signal [x]
   (repeat 2 (+ (reduce + (map (partial a-synth x) (range 1 50 1)))
