@@ -76,7 +76,7 @@
     (when-let [y (t-pos db f-sym t x)]
       ((resolve f-sym) db t y))))
 
-(def db {:tracks {:out {:components {10 :foo}}
+(def db2 {:tracks {:out {:components {10 :foo}}
 
                   'my-synth {}
 
@@ -201,8 +201,99 @@
         0 [repeat [:short-drum-loop [sine-wave 0.00001]] 1000]
         0 [reverb :bus/main-reverb]]}
 
+(defn saw-tooth
+  ([] -1)
+  ([x y1 [freq]]
+   (let [y (- y1 (/ 1 freq))]
+     (repeat 2 (if (<= y -1)
+                 1
+                 y)))))
+
+(defn mul
+  ([] nil)
+  ([x _ [& inputs]]
+   (apply * inputs)))
+
+(defn reverb
+  ([] nil)
+  ([x _ [in]]
+   in))
+
+(defn sine-wave
+  ([] nil)
+  ([x _ [freq]]
+   (m/qsin freq)))
+
+(def music
+  {:a-synth [mul
+             {0 1 50 0}
+             [25 [sine-wave 1000]]
+             [saw-tooth :1]]
+   :melody [0 [:a-synth :1]
+            40 [:a-synth 200]]
+   :out [reverb
+         [0 [:melody 400]
+          100 [:melody 300]]]})
+
+(def input-ks
+  {:1 1
+   :2 2
+   :3 3
+   :4 4
+   :5 5
+   :6 6
+   :7 7})
 
 
+
+(defn process-node [song node x state]
+                                        ;(println "process-node" node)
+  (cond (number? node)
+        node
+
+        (and (vector? node)
+             (int? (first node)))
+        (->> (partition 2 node)
+             (mapv (fn [pair]
+                     (if (= (first pair) x)
+                       (process-node song
+                                     (second pair)
+                                     0 state)
+                       pair)))
+             )        ; instead of nil need to replace-in with appropriate input
+
+        (or (keyword? node)
+            (and (vector? node)
+                 (keyword? (first node))))
+        (if (keyword? node)
+          (process-node song (get song node) 0 state)
+          (let [next-node (get song (first node))
+                inputs node
+                replaced-inputs (clojure.walk/postwalk #(if-let [input-num (input-ks %)]
+                                                          (nth inputs input-num)
+                                                          %)
+                                                       next-node)]
+            (process-node song replaced-inputs x state)))
+
+        (map? node)           ; TODO interpolate properly the map as an envelope
+        0.3731093
+
+        (and (vector? node)
+             (fn? (first node)))
+        (let [initial-state ((first node))
+              processed-args (map #(process-node song % x state)
+                                  (rest node))]
+          (into [(first node) x initial-state] processed-args)
+                                        ;(apply str (first node) " " initial-state " what do we do now we have initial state?" processed-args)
+          )
+
+        :else
+        node))
+
+(defn next-sample [song x state]
+  (process-node song (:out song) x state))
+
+;; (next-sample music 0 0)
 
 (defn lp-filter [x input cutoff]
   [(+ (* (input x))
