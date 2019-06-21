@@ -295,6 +295,29 @@
 
 ;; (next-sample music 0 0)
 
+(comment
+  ;; need to distinguish between a running function and a not running one. may make use of the lists below
+  ;; maybe just ignore the lists?
+  (clojure.walk/prewalk #(if (list? %) :future-event %) 
+                        '[reverb
+                         0
+                         nil
+                         [[[mul
+                            0
+                            nil
+                            0.3731093
+                            [(25 [sine-wave 1000])]
+                            [saw-tooth 0 -1 400]]
+                           (40 [:a-synth 200])]
+                          (100 [:melody 300])]])
+
+  [reverb
+   0
+   nil
+   [mul 0 nil 0.3731093 nil [saw-tooth 0 -1 400]] 
+    ]
+  )
+
 (defn lp-filter [x input cutoff]
   [(+ (* (input x))
       (* (input (- x 1)) 0.123)
