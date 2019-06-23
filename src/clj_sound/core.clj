@@ -259,8 +259,7 @@
                        (process-node song
                                      (second pair)
                                      0 state)
-                       pair)))
-             )        ; instead of nil need to replace-in with appropriate input
+                       pair))))
 
         (or (keyword? node)
             (and (vector? node)
@@ -289,6 +288,20 @@
 
         :else
         node))
+
+
+
+(defn process-node [f x state args]
+  (let [processed-args (map #(if (vec? el) (process-node %) %)
+                            args)
+        [new-samp new-state] (f x state (map #(if (list? %)
+                                                 (first %)
+                                                 %)
+                                              processed-args))]
+    (list new-samp [f (inc x) new-state (map #(if (list? %)
+                                                (second %)
+                                                %)
+                                             processed-args)])))
 
 (defn next-sample [song x state]
   (process-node song (:out song) x state))
