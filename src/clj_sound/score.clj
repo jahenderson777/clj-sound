@@ -3,7 +3,7 @@
 
 (defn saw-tooth
   ([] -1)
-  ([x y1 [freq]]
+  ([x n y1 [freq]]
    (let [y (- y1 (/ 1 freq))]
      (repeat 2 (if (<= y -1)
                  1
@@ -122,3 +122,64 @@
           (if (> i 48000)
             machine
             (recur (inc i) (process-node (second machine)))))))
+
+
+'{:bass-drum [aux-send
+              [drum-synth
+               {0 1 50 0.5 100 0}       ; volume env
+               {0 2 100 0.2}            ; pitch env
+               [sine-wave 0.001]        ; filter lfo
+               ]
+              :bus/main-reverb
+              ]
+  :clap [sampler "clap.wav"]
+  :bongo [aux-send
+          [drum-synth
+           {0 1 50 0.5 100 0}           ; volume env
+           {0 12 100 10.2}              ; pitch env
+           [sine-wave 0.001]            ; filter
+           ]
+          :bus/main-reverb]
+  :hihat [white-noise
+          {0 1 40 0}                    ; volume env
+          ]
+  :filtered-hihat [hp-filter
+                   [:hihat]
+                   {0 200 40 220}       ; freq
+                   :1                   ; q, expose as first parameter
+                   ]
+  :bass-synth [lp-filter
+               [saw-tooth
+                {0 1 100 0}
+                100]
+               {0 :1 100 0.1}
+               0.7]
+  :short-drum-loop [compressor
+                    [reverb
+                     [0 [multiplier [:bass-drum] 2]
+                      250 [:filtered-hihat 0.7]
+                      500 [:hihat]
+                      750 [:bongo]
+                      1000 [:bass-drum]
+                      1000 [:clap]
+                      1250 [:bass-synth :1]]]]
+  :pulse-env {0 1 100 0}
+  :monophonic-bass-line [multiplier
+                         [0 0
+                          250 [:pulse-env]
+                          500 [:pulse-env]
+                          750 [:pulse-env]] ; vol
+                         [lp-filter
+                          [saw-tooth 1
+                           [0 33
+                            250 66
+                            500 33
+                            750 99]]
+                          :1
+                          :midi/cc.10]]
+  :bass-line-track [repeat
+                    [:monophonic-bass-line [sine-wave 0.0000001]]
+                    1000]
+  :out [0 [:bass-line-track]
+        0 [repeat [:short-drum-loop [sine-wave 0.00001]] 1000]
+        0 [reverb :bus/main-reverb]]}

@@ -13,4 +13,6 @@
                  ]
   :main ^:skip-aot clj-sound.core
   :target-path "target/%s"
+  :plugins [[lein-virgil "0.1.9"]]
+  :java-source-paths ["java"]
   :profiles {:uberjar {:aot :all}})
