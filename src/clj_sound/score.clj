@@ -48,20 +48,21 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn build-graph [x node]
+(defn build-graph [n x node]
+  (println "build graph" n x node)
   (cond (number? node)
         node
 
         (and (vector? node)
              (int? (first node)))
         (if (= 2 (count node))
-          (if (= (first node) x)
-            (build-graph 0 (second node))
+          (if (<= (first node) (+ x n))
+            (build-graph n (- x (first node)) (second node))
             node)
           (->> (partition 2 node)
                (mapv (fn [pair]
-                       (if (= (first pair) x)
-                         (build-graph 0 (second pair))
+                       (if (<= (first pair) (+ x n))
+                         (build-graph n (- x (first pair)) (second pair))
                          (vec pair))))
                (conj [mix 0 nil])))
 
@@ -69,8 +70,8 @@
             (and (vector? node)
                  (symbol? (first node))))
         (if (symbol? node)
-          (build-graph 0 ((resolve node)))
-          (build-graph 0 (apply (resolve (first node))
+          (build-graph n x ((resolve node)))
+          (build-graph n x (apply (resolve (first node))
                                 (rest node))))
 
         (map? node)
@@ -79,7 +80,7 @@
         (and (vector? node)
              (fn? (first node)))
         (let [initial-state ((first node))
-              args (mapv #(build-graph x %)
+              args (mapv #(build-graph n x %)
                          (rest node))]
           [(first node) x initial-state args])
 
