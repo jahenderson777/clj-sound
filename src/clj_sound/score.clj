@@ -1,4 +1,5 @@
-(ns clj-sound.score)
+(ns clj-sound.score
+  (:import SawTooth))
 
 
 (defn saw-tooth
@@ -10,7 +11,7 @@
                  y)))))
 
 (defn mul
-  ([] nil)
+  ([x] nil)
   ([x _ [& inputs]]
    (apply * inputs)))
 
@@ -20,7 +21,7 @@
    (apply + inputs)))
 
 (defn reverb
-  ([] nil)
+  ([x] nil)
   ([x _ [in]]
    in))
 
@@ -29,6 +30,14 @@
   ([x _ [freq]]
    (Math/sin freq)))
 
+(defn sine
+  ([initial-x]
+   {:inital-x initial-x
+    :obj (doto (SimpleOsc.)
+           (.init 48000))})
+  ([obj buf [freq]]
+   (.compute obj (count buf) buf buf freq)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -36,7 +45,7 @@
   [mul
    {0 1 50 0}
    ;[25 [sine-wave 1000]]
-   [saw-tooth freq]])
+   [SawTooth freq]])
 
 (defn melody [freq]
   [0 ['a-synth freq]
@@ -47,6 +56,9 @@
            10 ['melody 300]]])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn construct [class & args]
+  (clojure.lang.Reflector/invokeConstructor class (into-array Object args)))
 
 (defn build-graph [n x node]
   (println "build graph" n x node)
@@ -79,10 +91,10 @@
 
         (and (vector? node)
              (fn? (first node)))
-        (let [initial-state ((first node))
+        (let [ugen ((first node) x)
               args (mapv #(build-graph n x %)
                          (rest node))]
-          [(first node) x initial-state args])
+          [(first node) ugen args])
 
         :else
         node))
@@ -117,6 +129,11 @@
 
 
 (comment
+(def fa (float-array 4))
+(def st (SawTooth. 2))
+
+(.process st 4 fa (float-array (repeat 4 200)))
+
 
   (time (loop [i 0
                machine (process-node (build-graph 0 (out)))]
