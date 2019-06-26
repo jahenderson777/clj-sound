@@ -5,7 +5,8 @@
             [clojure.data.avl :as avl])
   (:import (javax.sound.sampled AudioSystem DataLine$Info SourceDataLine AudioFormat AudioFormat$Encoding)
            SimpleOsc
-           CubicSplineFast)
+           CubicSplineFast
+           WavFile)
   (:gen-class))
 
 (set! *unchecked-math* true)
@@ -89,6 +90,10 @@
 (comment
   (doall (for [i (range 1000)] (do (Thread/sleep 5) (swap! data-state assoc :radius (rand-int 2000)))))
   (ui/ui db)
+
+  (def w (WavFile/openWavFile (java.io.File. "resources/Electro-Tom.wav")))
+  (def da (double-array (* (.getNumChannels w) (.getNumFrames w))))
+  (.readFrames w da (.getNumFrames w))
 
   )
 
