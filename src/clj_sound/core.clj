@@ -4,7 +4,8 @@
             [clojure.data.int-map :as i]
             [clojure.data.avl :as avl])
   (:import (javax.sound.sampled AudioSystem DataLine$Info SourceDataLine AudioFormat AudioFormat$Encoding)
-           SimpleOsc)
+           SimpleOsc
+           CubicSplineFast)
   (:gen-class))
 
 (set! *unchecked-math* true)
