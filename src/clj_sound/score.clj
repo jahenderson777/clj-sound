@@ -44,16 +44,126 @@
 (defn a-synth [freq]
   [mul
    {0 1 50 0}
-   ;[25 [sine-wave 1000]]
    [SawTooth freq]])
 
 (defn melody [freq]
   [0 ['a-synth freq]
    4 ['a-synth 200]])
 
-(defn out []
-  [reverb [0 ['melody 400]
-           10 ['melody 300]]])
+(defn out [x x1]
+  {:b1 [0 ['melody 400]
+        10 ['melody 300]]
+   :b0 ['a-synth 100]
+   :<- ['reverb :b1]})
+
+(defn execute [{:keys [fn x x1] :as m}]
+  (let [ret (apply (resolve (first fn)) x x1 (rest fn))]
+    (-> (if (map? ret)
+          ret
+          {:<- ret})
+        (assoc :fn fn :x x :x1 x1))))
+
+(defn process-buses [m]
+  (let [output (:<- m)
+        buses (conj (into [] (into (sorted-map) (dissoc m :<- :fn :x :x1)))
+                    [:<- output])]
+    (for [[bus v] buses]
+      (println bus v))))
+
+(defn ordered-buses [m]
+  (let [output (:<- m)]
+    (conj (into [] (into (sorted-map) (dissoc m :<- :fn :x :x1)))
+          [:<- output])))
+
+
+(defn out2 [x x1]
+  {:b1 [0 ['a-synth 10]
+        10 ['a-synth 20]]
+   :b2 [5 ['a-synth 10]
+        15 ['a-synth 20]]
+   :<- ['mix :b1 :b2]})
+
+(defn build-graph [n x old-fn-map]
+  "1. re-execute the node function and store this as 'new-node'
+   2. "
+  (let [fn-map (transient old-fn-map)
+        new-fn-map (execute old-fn-map)]
+    (for [[bus node] (ordered-buses new-fn-map)]
+      [bus (cond (and (vector? node)
+                      (int? (first node)))
+                 (loop [[t sequenced-node & tail] node
+                        new-or-updated-nodes []]
+                   (if (or (not (seq? tail))
+                           (>= t (+ x n)))
+                     new-or-updated-nodes
+                     (recur tail
+                            (cond (and (>= t x)
+                                       (< t (+ x n)))
+                                  (conj new-or-updated-nodes [t sequenced-node])
+
+                                  ;; TODO check if past sequenced event exists in old-fn-map, if so maybe modify arguments
+
+                                  :else
+                                  new-or-updated-nodes)))
+                   ))])
+    ))
+
+
+
+
+;; if a sequenced event is in the past in the new one, but doesn't exist in the old one (matching by time & Class), remove it
+;; any sequenced events that exist in the old one but not in the new one (matching by time=time & class=object), let them carry on,
+;; if a sequenced event is in the near future in the new, but not in the old, mix it in 
+;; if exists in both then change any parameters (unless they are nodes, in which case recur)
+;; any un-sequenced UGens/Events/Nodes that exist in the old but not the new, fade them out
+;; any un-sequenced UGens/Events/Nodes that exist in the new but not the old, fade them in
+
+(defn a-synth [{:keys [freq]}]
+  {:s mul
+   :c []})
+
+;; the nice thing about this was is that it is an easy and natural way to express the song
+;; the problem is that recompiling top level defn's that don't get run very won't change what's running
+;; like if we change the parameters to the reverb above, it will have no effect because 'out' only gets
+;; executed once at the beginning, or if we change the melody sequence this will have no effect
+;; we kind of need to re-evaluate the whole graph whenever we make a change
+;; and somehow match up what is playing with the result of the new evaluation
+;; if we swap the reverb for a compressor for example if would be nice if the playing melody sequence
+;; was just immediately re-routed through the compressor.
+
+;; the problem is we need to create stateful instances of ugens that change over time, but we want to describe everything in a pure way
+;; maybe we need some concept of static effect
+;; or maybe if we described all in data instead of functions, in one big data-structure, and we only had one datastructure,
+;; that we supplemented with the running state information, then we could swap a reverb for a compressor whilst it is running
+;; or what if
+
+(comment
+  {:fn ['out]
+   :x 1000
+   :x1 10
+   :b1 [0 {:fn ['melody 400]
+           :x 1000
+           :x1 1000
+           :<- [0 {:fn ['a-synth freq]
+                   :x 1000
+                   :x1 1000
+                   :<- [mul
+                        {0 1 50 0}
+                        [SawTooth freq]]}
+                4 ['a-synth 200]]}
+        10 ['melody 300]]
+   :b2 [5 ['melody 200]
+        15 ['melody 500]]
+   :<- [Compressor [Reverb :b1]]}
+
+  {:fn ['out]
+   :b1 [0 ['melody 400]
+        10 ['melody 300]]
+   :b2 [5 ['melody 200]
+        15 ['melody 500]]
+   :<- [Compressor [Phaser :b1]]})
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
