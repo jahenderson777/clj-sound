@@ -1,4 +1,4 @@
-public class SawTooth {
+public class SawTooth extends UGen{
     private int initialX = 0;
     private float y = -1;
 

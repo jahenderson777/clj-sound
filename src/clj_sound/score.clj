@@ -1,5 +1,7 @@
 (ns clj-sound.score
-  (:import SawTooth))
+  (:import UGen SawTooth)
+  (:require [clojure.string :as str]
+            [clojure.walk :as walk]))
 
 
 (defn saw-tooth
@@ -41,23 +43,25 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn a-synth [freq]
+(defn a-synth [x x1 freq]
   [mul
    {0 1 50 0}
    [SawTooth freq]])
 
-(defn melody [freq]
+(defn melody [x x1 freq]
   [0 ['a-synth freq]
    4 ['a-synth 200]])
 
 (defn out [x x1]
-  {:b1 [0 ['melody 400]
-        10 ['melody 300]]
+  {:b1 [SawTooth [0 ['melody 400]
+                  10 ['melody 300]]]
    :b0 ['a-synth 100]
-   :<- ['reverb :b1]})
+   :<- [SawTooth :b1]})
 
 (defn execute [{:keys [fn x x1] :as m}]
+  ;(println "execute " m)
   (let [ret (apply (resolve (first fn)) x x1 (rest fn))]
+    (println "ret " m)
     (-> (if (map? ret)
           ret
           {:<- ret})
@@ -75,6 +79,22 @@
     (conj (into [] (into (sorted-map) (dissoc m :<- :fn :x :x1)))
           [:<- output])))
 
+(defn monophonic-pass-line [x x1 cut-off]
+  ['lp-filter ['mul [SawTooth [0 100
+                               50 125
+                               100 150
+                               150 75]]
+               [0 {0 1 5 0}
+                50 {0 1 5 0}
+                100 {0 1 5 0}
+                150 {0 1 5 0}]]
+   ['mix
+    cut-off
+    [0 {0 1 5 0}
+     50 {0 1 5 0}
+     100 {0 1 5 0}
+     150 {0 1 5 0}]]])
+
 
 (defn out2 [x x1]
   {:b1 [0 ['a-synth 10]
@@ -83,11 +103,114 @@
         15 ['a-synth 20]]
    :<- ['mix :b1 :b2]})
 
+#_{:b1 {[0 'a-synth] [10]
+      [10 'a-synth] [20]
+      [20 'mix] [['a-synth 5] ['a-synth 15]]}}
+
+
+;; if the node is a vector with first element being an int, then the ugens should be created at the right momement
+;; if the node is a map with int keys, it is an envelope
+;; if the node is a map with non-int keys then it is a bus router, a set represents a split, e.g. #{:<- :b1}
+;; if the node is a vector with the first element being a class, then instatiate that class with appropriate initial-x
+;; if the node is a vector with the first element being a symbol, then execute that symbol's function
+;; if the node is a vector with the first element being a function, then this is a built in function, leave as is
+
+(walk/prewalk #(do (println "node=*" % "*") (if (= % ['foo 1.1])
+                                              :vhange
+                                              %) ) {:a
+                                                 ['a  [0 ['foo 1.1] 2 ['bar 2.2]]]
+                                                 :b :foo})
+
+
+(defn build-graph [n x node]
+  (->> node
+       (walk/prewalk
+        (fn [node]
+          (println "node=*" node "*")
+          (cond (vector? node)
+                (let [first-el (first node)]
+                  (cond (int? first-el)
+                        node ; ugens should be created at the right moment
+
+                        (class? first-el)
+                        node ; instatiate the class with the appropriate initial-x
+
+                        (symbol? first-el)
+                        node ; execute that symbol's function
+
+                        :else
+                        node
+                        ))
+
+                (map? node)
+                node)
+          node))))
+
+
+(loop [[a b & tail] (repeatedly #(rand-int 20))
+       new-seq []]
+  (if (= a 10)
+    (concat new-seq tail)
+    (recur tail (conj new-seq {:a a :b b}))))
+
+(defn construct [class & args]
+  (clojure.lang.Reflector/invokeConstructor class (into-array Object args)))
+
+(defn build-graph [n x node]
+  ;(println n x "node=*" node "*")
+  (cond (or (instance? clojure.lang.LazySeq node) (list? node) (vector? node))
+        (cond (int? (first node))  ; ugens should be created at the right moment
+              (loop [[t sequenced-node & tail] node
+                     new-sequence '()]
+                (let [sequenced-node2 (if (< t (+ x n))
+                                        (build-graph n (- x t) sequenced-node)
+                                        sequenced-node)
+                      new-sequence2 (concat new-sequence [t sequenced-node2])]
+                  (if (or (not (seq? tail))
+                          (>= t (+ x n)))
+                    (concat new-sequence2 tail)
+                    (recur tail new-sequence2))))
+
+              (class? (first node)) ; instatiate the class with the appropriate initial-x
+              (concat [(construct (first node) x)] (mapv #(build-graph n x %)
+                                                         (rest node)))
+
+              (or (fn? (first node))
+                  (instance? UGen (first node)))
+              (concat [(first node)] (mapv #(build-graph n x %)
+                                           (rest node)))
+
+              (symbol? (first node))
+              (build-graph n x (execute {:fn node :x x :x1 0}))
+
+              :else
+              node)
+
+        (map? node)
+        (if (int? (first (first node)))
+          :envelope
+          (into {} (map (fn [[k v]]
+                          [k (if (not (#{:fn :x :x1} k))
+                               (build-graph n x v)
+                               v)])
+                        node)))
+
+        :else
+        node))
+
+
+;; so process has to handle:
+;; maps, process buffers in order
+;; recur process on buffer values
+;; if a seq? and int? first key, process all the events until we get a t>x, mix all the results, somehow handle ended ugens
+;; if a seq? and UGen object or built-in fn first key, process all the args then (.process obj n input-buffers output-buffer)
+;; returns a buffer
+;; should we allow static float inputs, or should we always create buffers full of floats?
+
 (defn build-graph [n x old-fn-map]
   "1. re-execute the node function and store this as 'new-node'
    2. "
-  (let [fn-map (transient old-fn-map)
-        new-fn-map (execute old-fn-map)]
+  (let [new-fn-map (execute old-fn-map)]
     (for [[bus node] (ordered-buses new-fn-map)]
       [bus (cond (and (vector? node)
                       (int? (first node)))
@@ -97,11 +220,16 @@
                            (>= t (+ x n)))
                      new-or-updated-nodes
                      (recur tail
-                            (cond (and (>= t x)
+                            (cond (and (> t x)
                                        (< t (+ x n)))
                                   (conj new-or-updated-nodes [t sequenced-node])
 
-                                  ;; TODO check if past sequenced event exists in old-fn-map, if so maybe modify arguments
+                                  ;; check if past sequenced event exists in old-fn-map, if so maybe modify arguments
+                                  (and (< t x)
+                                       (some (fn [t-old [fn-old & args]]
+                                               (and (= t-old t)
+                                                    (= fn-old (first sequenced-node))))
+                                             (partition 2 (bus old-fn-map))))
 
                                   :else
                                   new-or-updated-nodes)))
@@ -109,7 +237,7 @@
     ))
 
 
-
+;; somehow watch for re-compiles of node-fn's? and only re-execute if re-compiled?;; keep a registry of node-fn's mapping symbol to function, check this often, and if different, re-execute node-fn in running db
 
 ;; if a sequenced event is in the past in the new one, but doesn't exist in the old one (matching by time & Class), remove it
 ;; any sequenced events that exist in the old one but not in the new one (matching by time=time & class=object), let them carry on,
@@ -140,13 +268,10 @@
 (comment
   {:fn ['out]
    :x 1000
-   :x1 10
    :b1 [0 {:fn ['melody 400]
            :x 1000
-           :x1 1000
            :<- [0 {:fn ['a-synth freq]
                    :x 1000
-                   :x1 1000
                    :<- [mul
                         {0 1 50 0}
                         [SawTooth freq]]}
@@ -167,8 +292,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn construct [class & args]
-  (clojure.lang.Reflector/invokeConstructor class (into-array Object args)))
+
 
 (defn build-graph [n x node]
   (println "build graph" n x node)
