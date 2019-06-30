@@ -1,5 +1,5 @@
 (ns clj-sound.score
-  (:import UGen SawTooth)
+  (:import UGen SawTooth SoundUtil)
   (:require [clojure.string :as str]
             [clojure.walk :as walk]))
 
@@ -40,6 +40,10 @@
   ([obj buf [freq]]
    (.compute obj (count buf) buf buf freq)))
 
+(def buffers (atom {}))
+
+(defn mul [& bufs]
+  (SoundUtil/multiplyBuffers (into-array bufs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -48,12 +52,15 @@
    {0 1 50 0}
    [SawTooth freq]])
 
+(defn lazy-melody [x x1 n]
+  (lazy-seq (cons (* 10 n) (cons ['a-synth (* 100 (inc (rand-int 10)))] (lazy-melody x x1 (inc n))))))
+
 (defn melody [x x1 freq]
   [0 ['a-synth freq]
    4 ['a-synth 200]])
 
 (defn out [x x1]
-  {:b1 [SawTooth [0 ['melody 400]
+  {:b1 [SawTooth [0 ['lazy-melody 0]
                   10 ['melody 300]]]
    :b0 ['a-synth 100]
    :<- [SawTooth :b1]})
@@ -75,9 +82,7 @@
       (println bus v))))
 
 (defn ordered-buses [m]
-  (let [output (:<- m)]
-    (conj (into [] (into (sorted-map) (dissoc m :<- :fn :x :x1)))
-          [:<- output])))
+  (into (sorted-map) (dissoc m :<- :fn :x :x1)))
 
 (defn monophonic-pass-line [x x1 cut-off]
   ['lp-filter ['mul [SawTooth [0 100
@@ -115,39 +120,7 @@
 ;; if the node is a vector with the first element being a symbol, then execute that symbol's function
 ;; if the node is a vector with the first element being a function, then this is a built in function, leave as is
 
-(walk/prewalk #(do (println "node=*" % "*") (if (= % ['foo 1.1])
-                                              :vhange
-                                              %) ) {:a
-                                                 ['a  [0 ['foo 1.1] 2 ['bar 2.2]]]
-                                                 :b :foo})
-
-
-(defn build-graph [n x node]
-  (->> node
-       (walk/prewalk
-        (fn [node]
-          (println "node=*" node "*")
-          (cond (vector? node)
-                (let [first-el (first node)]
-                  (cond (int? first-el)
-                        node ; ugens should be created at the right moment
-
-                        (class? first-el)
-                        node ; instatiate the class with the appropriate initial-x
-
-                        (symbol? first-el)
-                        node ; execute that symbol's function
-
-                        :else
-                        node
-                        ))
-
-                (map? node)
-                node)
-          node))))
-
-
-(loop [[a b & tail] (repeatedly #(rand-int 20))
+#_(loop [[a b & tail] (repeatedly #(rand-int 20))
        new-seq []]
   (if (= a 10)
     (concat new-seq tail)
@@ -176,7 +149,7 @@
                                                          (rest node)))
 
               (or (fn? (first node))
-                  (instance? UGen (first node)))
+                  (instance? UGen (first node))) ; TODO maybe call .isEnded() on obj and remove if true somehow
               (concat [(first node)] (mapv #(build-graph n x %)
                                            (rest node)))
 
@@ -198,6 +171,38 @@
         :else
         node))
 
+#_(defn get-or-create-buffer [n bus]
+  (if-let [b (bus @buffers)]
+    b
+    (let [fa (float-array n)]
+      (swap! buffers assoc bus fa)
+      fa)))
+
+(defn add-bufs [& bufs]
+  (SoundUtil/sumBuffers (into-array bufs)))
+
+(defn process-node [n x node]
+  (cond (map? node)
+        (let [x1 (or (:x1 node) x)]
+          (do (doseq [[bus v] (ordered-buses node)]
+                (swap! buffers update bus (fn [b] (add-bufs (or b (float-array n))
+                                                           (process-node n x1 v)))))
+              (process-node n x1 (:<- node))))
+
+        (number? node)
+        (SoundUtil/filledBuf n node)
+
+        (or (instance? clojure.lang.LazySeq node) (list? node) (vector? node))
+        (cond (int? (first node))
+              (loop [[t sequenced-node & tail] node
+                     bufs-to-sum []]
+                (if (or (not (seq? tail))
+                        (>= t (+ x n)))
+                  (apply add-bufs bufs-to-sum)
+                  (recur tail (conj bufs-to-sum (process-node n x sequenced-node)))))
+
+              (instance? UGen (first node))
+              (.process (first node) n (into-array (map (partial process-node n x) (rest node)))))))
 
 ;; so process has to handle:
 ;; maps, process buffers in order
@@ -207,34 +212,9 @@
 ;; returns a buffer
 ;; should we allow static float inputs, or should we always create buffers full of floats?
 
-(defn build-graph [n x old-fn-map]
-  "1. re-execute the node function and store this as 'new-node'
-   2. "
-  (let [new-fn-map (execute old-fn-map)]
-    (for [[bus node] (ordered-buses new-fn-map)]
-      [bus (cond (and (vector? node)
-                      (int? (first node)))
-                 (loop [[t sequenced-node & tail] node
-                        new-or-updated-nodes []]
-                   (if (or (not (seq? tail))
-                           (>= t (+ x n)))
-                     new-or-updated-nodes
-                     (recur tail
-                            (cond (and (> t x)
-                                       (< t (+ x n)))
-                                  (conj new-or-updated-nodes [t sequenced-node])
 
-                                  ;; check if past sequenced event exists in old-fn-map, if so maybe modify arguments
-                                  (and (< t x)
-                                       (some (fn [t-old [fn-old & args]]
-                                               (and (= t-old t)
-                                                    (= fn-old (first sequenced-node))))
-                                             (partition 2 (bus old-fn-map))))
 
-                                  :else
-                                  new-or-updated-nodes)))
-                   ))])
-    ))
+
 
 
 ;; somehow watch for re-compiles of node-fn's? and only re-execute if re-compiled?;; keep a registry of node-fn's mapping symbol to function, check this often, and if different, re-execute node-fn in running db
@@ -246,9 +226,7 @@
 ;; any un-sequenced UGens/Events/Nodes that exist in the old but not the new, fade them out
 ;; any un-sequenced UGens/Events/Nodes that exist in the new but not the old, fade them in
 
-(defn a-synth [{:keys [freq]}]
-  {:s mul
-   :c []})
+
 
 ;; the nice thing about this was is that it is an easy and natural way to express the song
 ;; the problem is that recompiling top level defn's that don't get run very won't change what's running
@@ -294,71 +272,7 @@
 
 
 
-(defn build-graph [n x node]
-  (println "build graph" n x node)
-  (cond (number? node)
-        node
 
-        (and (vector? node)
-             (int? (first node)))
-        (if (= 2 (count node))
-          (if (<= (first node) (+ x n))
-            (build-graph n (- x (first node)) (second node))
-            node)
-          (->> (partition 2 node)
-               (mapv (fn [pair]
-                       (if (<= (first pair) (+ x n))
-                         (build-graph n (- x (first pair)) (second pair))
-                         (vec pair))))
-               (conj [mix 0 nil])))
-
-        (or (symbol? node)
-            (and (vector? node)
-                 (symbol? (first node))))
-        (if (symbol? node)
-          (build-graph n x ((resolve node)))
-          (build-graph n x (apply (resolve (first node))
-                                (rest node))))
-
-        (map? node)
-        0.234234
-
-        (and (vector? node)
-             (fn? (first node)))
-        (let [ugen ((first node) x)
-              args (mapv #(build-graph n x %)
-                         (rest node))]
-          [(first node) ugen args])
-
-        :else
-        node))
-
-(defn process-node [node]
-  (if (number? node)
-    (list node node)
-    (let [[f x state args] node]
-      (if (fn? f)
-        (let [processed-args (doall (map #(if (vector? %)
-                                            (->> (if (and (int? (first %))
-                                                          (= (first %) x))
-                                                   (build-graph x (second %))
-                                                   %)
-                                                 process-node)
-                                            %)
-                                         args))
-              ugen-output (f x state (map #(if (list? %)
-                                             (first %)
-                                             %)
-                                          processed-args))
-
-              [new-samp new-state] (if (seq? ugen-output)
-                                     ugen-output
-                                     [ugen-output nil])]
-          (list new-samp [f (inc x) new-state (map #(if (list? %)
-                                                      (second %)
-                                                      %)
-                                                   processed-args)]))
-        (list 0 node)))))
 
 
 

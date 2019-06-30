@@ -6,13 +6,16 @@ public class SawTooth extends UGen{
         this.initialX = initialX;
     }
 
-    public void process(int count, float[] buf, float[] freq) {
+    public float[] process(int count, float[][] inputs) {
+        float[] out = new float[count];
+        float[] freq = inputs[0];
         float y1 = this.y;
         for (int i = this.initialX; i<count; i++) {
-            buf[i] = y1 - 1.0f / freq[i];
-            if (buf[i] <= -1.0f)
-                buf[i] = 1.0f;
-            y1 = buf[i];
+            out[i] = y1 - 1.0f / freq[i];
+            if (out[i] <= -1.0f)
+                out[i] = 1.0f;
+            y1 = out[i];
         }
+        return out;
     }
 }
