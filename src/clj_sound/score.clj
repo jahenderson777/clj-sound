@@ -51,8 +51,8 @@
   [mul
    {0 1 50 0}
    [0 [SawTooth freq]
-    3 [SawTooth freq]
-    6 [SawTooth freq]
+    ;30000 [SawTooth freq]
+    ;60000 [SawTooth freq]
     ]])
 
 (defn lazy-melody [x n]
@@ -60,20 +60,34 @@
 
 (defn melody [x freq]
   [0 ['a-synth freq]
-   4 ['a-synth 200]])
+   40000 ['a-synth 200]])
+
+(defn noise [x freq]
+  [0 [SawTooth [0 freq
+
+                0 [mul 1
+                   [SawTooth 1]]]]
+   0 [SawTooth [0 (- freq 100)
+
+                0 [mul 1
+                   [SawTooth 1.1]] ]]])
 
 (defn out [x]
   #_[0 [SawTooth 2000]
    2 [SawTooth 2000]]
-  {:b1 [0 ['melody 200]                  ;['lazy-melody 0]
-        10 ['melody 300]
-        ]
-   :b0 ['a-synth 100]
+  {:b1 [0 ['noise 300]
+        0 ['noise 301]]                      ;['lazy-melody 0]
+                                        ;100000 ['a-synth 200]
+                                        ;200000 ['a-synth 301]
+                                        ;100000 ['a-synth 553]
+                                        ;400000 ['a-synth 551]
+   
+   ;:b0 ['a-synth 10]
    :<- :b1})
 
 (defn execute [x {:keys [fn start-x] :as m}]
-  ;(println "execute " m)
-  (let [ret (apply (resolve (first fn)) x (rest fn))]
+  (println "execute " *ns* m)
+  (let [ret (apply (ns-resolve 'clj-sound.score (first fn)) x (rest fn))]
     ;(println "ret " m)
     (-> (if (map? ret)
           ret

@@ -11,11 +11,13 @@ public class SawTooth extends UGen{
         float[] freq = inputs[0];
         float y1 = this.y;
         for (int i = - this.initialX; i<count; i++) {
-            out[i] = y1 - freq[i] / 10000.0f;
+            out[i] = y1 - (freq[i] / 10000.0f);
             if (out[i] <= -1.0f)
-                out[i] = 1.0f;
+                out[i] += 1.0f;
             y1 = out[i];
         }
+        this.y = y1;
+        this.initialX = 0;
         return out;
     }
 }

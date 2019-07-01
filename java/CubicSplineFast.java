@@ -56,17 +56,17 @@
 public class CubicSplineFast{
 
     	private int nPoints = 0;                            // no. of tabulated points
-    	private double[] y = null;                          // y=f(x) tabulated function
-    	private double[] x = null;                          // x in tabulated function f(x)
-    	private double[] d2ydx2 = null;                     // second derivatives of y
+    	private float[] y = null;                          // y=f(x) tabulated function
+    	private float[] x = null;                          // x in tabulated function f(x)
+    	private float[] d2ydx2 = null;                     // second derivatives of y
 
     	// Constructors
     	// Constructor with data arrays initialised to arrays x and y
-    	public CubicSplineFast(double[] x, double[] y){
+    	public CubicSplineFast(float[] x, float[] y){
         	this.nPoints=x.length;
-        	this.x = new double[nPoints];
-        	this.y = new double[nPoints];
-        	this.d2ydx2 = new double[nPoints];
+        	this.x = new float[nPoints];
+        	this.y = new float[nPoints];
+        	this.d2ydx2 = new float[nPoints];
         	for(int i=0; i<this.nPoints; i++){
             		this.x[i]=x[i];
             		this.y[i]=y[i];
@@ -78,15 +78,15 @@ public class CubicSplineFast{
     	// Primarily for use by BiCubicSplineFast
     	public CubicSplineFast(int nPoints){
         	this.nPoints=nPoints;
-        	this.x = new double[nPoints];
-        	this.y = new double[nPoints];
-        	this.d2ydx2 = new double[nPoints];
+        	this.x = new float[nPoints];
+        	this.y = new float[nPoints];
+        	this.d2ydx2 = new float[nPoints];
    	    }
 
     	// METHODS
 
     	// Resets the x y data arrays - primarily for use in BiCubicSplineFast
-    	public void resetData(double[] x, double[] y){
+    	public void resetData(float[] x, float[] y){
         	for(int i=0; i<this.nPoints; i++){
             		this.x[i]=x[i];
             		this.y[i]=y[i];
@@ -116,20 +116,20 @@ public class CubicSplineFast{
     	//  for use by the cubic spline interpolation method (.interpolate)
     	//  This method follows the procedure in Numerical Methods C language procedure for calculating second derivatives
     	public void calcDeriv(){
-	    	double	p=0.0D,qn=0.0D,sig=0.0D,un=0.0D;
-	    	double[] u = new double[nPoints];
+	    	float	p=0.0f,qn=0.0f,sig=0.0f,un=0.0f;
+	    	float[] u = new float[nPoints];
 
-	        d2ydx2[0]=u[0]=0.0;
+	        d2ydx2[0]=u[0]=0.0f;
 	    	for(int i=1;i<=this.nPoints-2;i++){
 		    	sig=(this.x[i]-this.x[i-1])/(this.x[i+1]-this.x[i-1]);
-		    	p=sig*this.d2ydx2[i-1]+2.0;
-		    	this.d2ydx2[i]=(sig-1.0)/p;
+		    	p=sig*this.d2ydx2[i-1]+2.0f;
+		    	this.d2ydx2[i]=(sig-1.0f)/p;
 		    	u[i]=(this.y[i+1]-this.y[i])/(this.x[i+1]-this.x[i]) - (this.y[i]-this.y[i-1])/(this.x[i]-this.x[i-1]);
-		    	u[i]=(6.0*u[i]/(this.x[i+1]-this.x[i-1])-sig*u[i-1])/p;
+		    	u[i]=(6.0f*u[i]/(this.x[i+1]-this.x[i-1])-sig*u[i-1])/p;
 	    	}
 
-		    qn=un=0.0;
-	    	this.d2ydx2[this.nPoints-1]=(un-qn*u[this.nPoints-2])/(qn*this.d2ydx2[this.nPoints-2]+1.0);
+		    qn=un=0.0f;
+	    	this.d2ydx2[this.nPoints-1]=(un-qn*u[this.nPoints-2])/(qn*this.d2ydx2[this.nPoints-2]+1.0f);
 	    	for(int k=this.nPoints-2;k>=0;k--){
 		    	this.d2ydx2[k]=this.d2ydx2[k]*this.d2ydx2[k+1]+u[k];
 	    	}
@@ -140,9 +140,9 @@ public class CubicSplineFast{
     	//  after the data has been entered via a constructor.
     	//  The derivatives are calculated, bt calcDeriv(), on the first call to this method ands are
     	//  then stored for use on all subsequent calls
-    	public double interpolate(double xx){
+    	public float interpolate(float xx){
 
-            double h=0.0D,b=0.0D,a=0.0D, yy=0.0D;
+            float h=0.0f,b=0.0f,a=0.0f, yy=0.0f;
 	    	int k=0;
 	    	int klo=0;
 	    	int khi=this.nPoints-1;
@@ -163,7 +163,7 @@ public class CubicSplineFast{
 	    	else{
 	        	a=(this.x[khi]-xx)/h;
 	        	b=(xx-this.x[klo])/h;
-	        	yy=a*this.y[klo]+b*this.y[khi]+((a*a*a-a)*this.d2ydx2[klo]+(b*b*b-b)*this.d2ydx2[khi])*(h*h)/6.0;
+	        	yy=a*this.y[klo]+b*this.y[khi]+((a*a*a-a)*this.d2ydx2[klo]+(b*b*b-b)*this.d2ydx2[khi])*(h*h)/6.0f;
 	    	}
 	    	return yy;
     	}

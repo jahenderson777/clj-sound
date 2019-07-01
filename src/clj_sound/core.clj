@@ -1,6 +1,7 @@
 (ns clj-sound.core
   (:require [fastmath.core :as m]
             [clj-sound.ui :as ui]
+            [clj-sound.score :as score]
             [clojure.data.int-map :as i]
             [clojure.data.avl :as avl])
   (:import (javax.sound.sampled AudioSystem DataLine$Info SourceDataLine AudioFormat AudioFormat$Encoding)
@@ -53,14 +54,20 @@
 
 (.init o 48000)
 
+(def buf-size 1024)
+(def x (atom 0))
+(def graph (atom (score/out 0)))
 
 
 (defn build-buffer [sample-position]
-  (.compute o 1024 fa fa 400.0)
-  (->> (interleave (first fa) (second fa))
-       (map #(int (* 1000 %)))
-       (mapcat (partial little-endian 2))
-       byte-array))
+  (reset! score/buffers {})
+  (swap! graph (partial score/build-graph buf-size @x @x))
+  (let [fa (score/process-node buf-size @x @graph)]
+    (swap! x (partial + buf-size))
+    (->> (interleave fa fa)
+         (map #(int (* 1000 %)))
+         (mapcat (partial little-endian 2))
+         byte-array)))
 
 (defn play-loop [line buffer player is-playing]
   (when buffer
