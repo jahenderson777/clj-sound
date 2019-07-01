@@ -71,7 +71,7 @@ import javax.swing.JOptionPane;
 
 import java.lang.Math;
 
-import sun.audio.*;
+//import sun.audio.*;
 import java.io.*;
 import javax.sound.sampled.*;
 

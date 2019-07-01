@@ -47,36 +47,38 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn a-synth [x x1 freq]
+(defn a-synth [x freq]
   [mul
    {0 1 50 0}
-   [SawTooth freq]])
+   [0 [SawTooth freq]
+    3 [SawTooth freq]
+    6 [SawTooth freq]]])
 
-(defn lazy-melody [x x1 n]
-  (lazy-seq (cons (* 10 n) (cons ['a-synth (* 100 (inc (rand-int 10)))] (lazy-melody x x1 (inc n))))))
+(defn lazy-melody [x n]
+  (lazy-seq (cons (* 10 n) (cons ['a-synth (* 100 (inc (rand-int 10)))] (lazy-melody x (inc n))))))
 
-(defn melody [x x1 freq]
+(defn melody [x freq]
   [0 ['a-synth freq]
    4 ['a-synth 200]])
 
-(defn out [x x1]
-  {:b1 [SawTooth [0 ['lazy-melody 0]
+(defn out [x]
+  {:b1 [SawTooth [0 ['melody 200]                  ;['lazy-melody 0]
                   10 ['melody 300]]]
    :b0 ['a-synth 100]
    :<- [SawTooth :b1]})
 
-(defn execute [{:keys [fn x x1] :as m}]
+(defn execute [x {:keys [fn start-x] :as m}]
   ;(println "execute " m)
-  (let [ret (apply (resolve (first fn)) x x1 (rest fn))]
-    (println "ret " m)
+  (let [ret (apply (resolve (first fn)) x (rest fn))]
+    ;(println "ret " m)
     (-> (if (map? ret)
           ret
           {:<- ret})
-        (assoc :fn fn :x x :x1 x1))))
+        (assoc :fn fn :start-x start-x))))
 
-(defn process-buses [m]
+#_(defn process-buses [m]
   (let [output (:<- m)
-        buses (conj (into [] (into (sorted-map) (dissoc m :<- :fn :x :x1)))
+        buses (conj (into [] (into (sorted-map) (dissoc m :<- :fn :x1)))
                     [:<- output])]
     (for [[bus v] buses]
       (println bus v))))
@@ -105,6 +107,7 @@
   {:b1 [0 ['a-synth 10]
         10 ['a-synth 20]]
    :b2 [5 ['a-synth 10]
+
         15 ['a-synth 20]]
    :<- ['mix :b1 :b2]})
 
@@ -129,44 +132,60 @@
 (defn construct [class & args]
   (clojure.lang.Reflector/invokeConstructor class (into-array Object args)))
 
-(defn build-graph [n x node]
-  ;(println n x "node=*" node "*")
+(defn build-graph [n x-buf x node]
+  ;(println "build-graph " n x-buf x "node=*" node "*")
   (cond (or (instance? clojure.lang.LazySeq node) (list? node) (vector? node))
-        (cond (int? (first node))  ; ugens should be created at the right moment
-              (loop [[t sequenced-node & tail] node
-                     new-sequence '()]
-                (let [sequenced-node2 (if (< t (+ x n))
-                                        (build-graph n (- x t) sequenced-node)
-                                        sequenced-node)
-                      new-sequence2 (concat new-sequence [t sequenced-node2])]
-                  (if (or (not (seq? tail))
-                          (>= t (+ x n)))
-                    (concat new-sequence2 tail)
-                    (recur tail new-sequence2))))
+        (cond (int? (first node))
+              (build-graph n x-buf x {:seq :polyphonic
+                                      :start-x x
+                                      :data node})
 
-              (class? (first node)) ; instatiate the class with the appropriate initial-x
-              (concat [(construct (first node) x)] (mapv #(build-graph n x %)
-                                                         (rest node)))
+              (class? (first node))
+              (do ;(println "constructing " (first node) (- x-buf x))
+                  (concat [(construct (first node) (- x-buf x))] (mapv #(build-graph n x-buf x %)
+                                                                       (rest node))))
 
               (or (fn? (first node))
-                  (instance? UGen (first node))) ; TODO maybe call .isEnded() on obj and remove if true somehow
-              (concat [(first node)] (mapv #(build-graph n x %)
+                  (instance? UGen (first node)))
+              (concat [(first node)] (mapv #(build-graph n x-buf x %)
                                            (rest node)))
 
               (symbol? (first node))
-              (build-graph n x (execute {:fn node :x x :x1 0}))
+              (build-graph n x-buf x (execute x {:fn node :start-x x}))
 
               :else
               node)
 
         (map? node)
-        (if (int? (first (first node)))
-          :envelope
-          (into {} (map (fn [[k v]]
-                          [k (if (not (#{:fn :x :x1} k))
-                               (build-graph n x v)
-                               v)])
-                        node)))
+        (cond (:seq node)
+              (-> node
+                  (update :data
+                          (fn [s]
+                            (let [start-x (:start-x node)
+                                  x1 (- x-buf start-x)]
+                              (loop [[t sequenced-node & tail] s
+                                     new-sequence '()]
+                                (println sequenced-node "start-x=" start-x "x=" x "x1=" x1 "t=" t "(+ x1 n)=" (+ x1 n))
+                                (let [sequenced-node2 (if (< t (+ x1 n))
+                                                        ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
+                                                      
+                                                        (build-graph n x-buf (+ start-x t) sequenced-node)
+                                                        sequenced-node)
+                                      new-sequence2 (concat new-sequence [t sequenced-node2])] ; TODO don't concat if nil (ended)
+                                  (if (or (not (seq? tail))
+                                          (>= t (+ x1 n)))
+                                    (concat new-sequence2 tail)
+                                    (recur tail new-sequence2))))))))
+
+              (int? (first (first node)))
+              :envelope
+
+              :else
+              (into {} (map (fn [[k v]]
+                              [k (if (not (#{:fn :start-x} k))
+                                   (build-graph n x-buf x v)
+                                   v)])
+                            node)))
 
         :else
         node))
