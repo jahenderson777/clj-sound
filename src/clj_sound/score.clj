@@ -52,7 +52,8 @@
    {0 1 50 0}
    [0 [SawTooth freq]
     3 [SawTooth freq]
-    6 [SawTooth freq]]])
+    6 [SawTooth freq]
+    ]])
 
 (defn lazy-melody [x n]
   (lazy-seq (cons (* 10 n) (cons ['a-synth (* 100 (inc (rand-int 10)))] (lazy-melody x (inc n))))))
@@ -62,10 +63,13 @@
    4 ['a-synth 200]])
 
 (defn out [x]
-  {:b1 [SawTooth [0 ['melody 200]                  ;['lazy-melody 0]
-                  10 ['melody 300]]]
+  #_[0 [SawTooth 2000]
+   2 [SawTooth 2000]]
+  {:b1 [0 ['melody 200]                  ;['lazy-melody 0]
+        10 ['melody 300]
+        ]
    :b0 ['a-synth 100]
-   :<- [SawTooth :b1]})
+   :<- :b1})
 
 (defn execute [x {:keys [fn start-x] :as m}]
   ;(println "execute " m)
@@ -84,7 +88,7 @@
       (println bus v))))
 
 (defn ordered-buses [m]
-  (into (sorted-map) (dissoc m :<- :fn :x :x1)))
+  (into (sorted-map) (dissoc m :<- :fn :start-x)))
 
 (defn monophonic-pass-line [x x1 cut-off]
   ['lp-filter ['mul [SawTooth [0 100
@@ -165,10 +169,9 @@
                                   x1 (- x-buf start-x)]
                               (loop [[t sequenced-node & tail] s
                                      new-sequence '()]
-                                (println sequenced-node "start-x=" start-x "x=" x "x1=" x1 "t=" t "(+ x1 n)=" (+ x1 n))
+                                ;(println sequenced-node "start-x=" start-x "x=" x "x1=" x1 "t=" t "(+ x1 n)=" (+ x1 n))
                                 (let [sequenced-node2 (if (< t (+ x1 n))
                                                         ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
-                                                      
                                                         (build-graph n x-buf (+ start-x t) sequenced-node)
                                                         sequenced-node)
                                       new-sequence2 (concat new-sequence [t sequenced-node2])] ; TODO don't concat if nil (ended)
@@ -198,10 +201,34 @@
       fa)))
 
 (defn add-bufs [& bufs]
+  ;(println "add-bufs" bufs)
   (SoundUtil/sumBuffers (into-array bufs)))
 
+(defn mul-bufs [& bufs]
+                                        ;(println "add-bufs" bufs)
+  (SoundUtil/multiplyBuffers (into-array bufs)))
+
 (defn process-node [n x node]
-  (cond (map? node)
+  ;(println "process-node" node)
+  ;(Thread/sleep 100)
+  (cond (and (map? node)
+             (:seq node))
+        (let [start-x (:start-x node)
+              node (:data node)
+              x1 (- x start-x)]
+          (loop [[t sequenced-node & tail] node
+                 bufs-to-sum []]
+            ;(println "bufs-to-sum=" bufs-to-sum "t, start-x, n, tail" t start-x n tail)
+            (let [bufs-to-sum (if (< t (+ x1 n))
+                                (conj bufs-to-sum (process-node n x sequenced-node))
+                                bufs-to-sum)]
+              (if (or (not (seq? tail))
+                      (>= t (+ x1 n)))
+                (do ;(println bufs-to-sum)
+                    (apply add-bufs bufs-to-sum))
+                (recur tail bufs-to-sum)))))
+
+        (map? node)
         (let [x1 (or (:x1 node) x)]
           (do (doseq [[bus v] (ordered-buses node)]
                 (swap! buffers update bus (fn [b] (add-bufs (or b (float-array n))
@@ -209,19 +236,27 @@
               (process-node n x1 (:<- node))))
 
         (number? node)
-        (SoundUtil/filledBuf n node)
+        (do ;(println "filling buffer " node)
+            ;["foo"]
+            (SoundUtil/filledBuf n node)
+            )
 
         (or (instance? clojure.lang.LazySeq node) (list? node) (vector? node))
-        (cond (int? (first node))
-              (loop [[t sequenced-node & tail] node
-                     bufs-to-sum []]
-                (if (or (not (seq? tail))
-                        (>= t (+ x n)))
-                  (apply add-bufs bufs-to-sum)
-                  (recur tail (conj bufs-to-sum (process-node n x sequenced-node)))))
+        (cond ;(int? (first node))
+              
 
-              (instance? UGen (first node))
-              (.process (first node) n (into-array (map (partial process-node n x) (rest node)))))))
+          (instance? UGen (first node))
+          (do ;(println "process" (first node))
+              (.process (first node) n (into-array (map (partial process-node n x) (rest node)))))
+
+              (= (first node) mul)
+              (apply mul-bufs (map (partial process-node n x) (rest node))))
+
+        (= node :envelope)
+        (SoundUtil/filledBuf n 1.0)
+
+        (keyword? node)
+        (node @buffers)))
 
 ;; so process has to handle:
 ;; maps, process buffers in order
