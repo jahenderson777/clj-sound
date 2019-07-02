@@ -25,6 +25,12 @@ public class SoundUtil {
         return buf;
     }
 
+    public static float[] nullBuf(int n, float value) {
+        float[] buf = new float[n];
+
+        return null;
+    }
+
     public static boolean anyNullBufs(float[][] bufs) {
         for (int i = 0; i < bufs.length; i++) {
             if (bufs[i] == null) {

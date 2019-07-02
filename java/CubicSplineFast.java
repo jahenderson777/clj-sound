@@ -135,6 +135,10 @@ public class CubicSplineFast{
 	    	}
     	}
 
+
+    public double lastX() {
+        return this.x[this.x.length-1];
+    }
     	//  INTERPOLATE
     	//  Returns an interpolated value of y for a value of x from a tabulated function y=f(x)
     	//  after the data has been entered via a constructor.

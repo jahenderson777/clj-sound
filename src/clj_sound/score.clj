@@ -76,9 +76,9 @@
   #_[0 [SawTooth 2000]
    2 [SawTooth 2000]]
   {:b1 [0 ['noise {0 500
-                   50000 400
-                   100000 700}]
-        0 ['noise 301]]                      ;['lazy-melody 0]
+                   5 400
+                   10 700}]
+        10 ['noise 301]]                      ;['lazy-melody 0]
                                         ;100000 ['a-synth 200]
                                         ;200000 ['a-synth 301]
                                         ;100000 ['a-synth 553]
@@ -167,8 +167,11 @@
 
               (or (fn? (first node))
                   (instance? UGen (first node)))
-              (concat [(first node)] (mapv #(build-graph n x-buf x %)
-                                           (rest node)))
+              (let [inputs (mapv #(build-graph n x-buf x %)
+                                 (rest node))]
+                (if (some nil? inputs)
+                  nil
+                  (concat [(first node)] inputs)))
 
               (symbol? (first node))
               (build-graph n x-buf x (execute x {:fn node :start-x x}))
@@ -190,7 +193,9 @@
                                                         ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
                                                         (build-graph n x-buf (+ start-x t) sequenced-node)
                                                         sequenced-node)
-                                      new-sequence2 (concat new-sequence [t sequenced-node2])] ; TODO don't concat if nil (ended)
+                                      new-sequence2 (if sequenced-node2
+                                                      (concat new-sequence [t sequenced-node2])
+                                                      new-sequence)] ; don't concat if nil (ended)
                                   (if (or (not (seq? tail))
                                           (>= t (+ x1 n)))
                                     (concat new-sequence2 tail)
@@ -207,6 +212,11 @@
                                    (build-graph n x-buf x v)
                                    v)])
                             node)))
+
+        (instance? Player node)
+        (if (.-ended node)
+          nil
+          node)
 
         :else
         node))
@@ -349,6 +359,9 @@
 
 
 (comment
+
+  (def p (Player. 0 (double-array [0 10 20])
+                  (double-array [1 0.9 0.1])))
 (def fa (float-array 4))
 (def st (SawTooth. 2))
 
