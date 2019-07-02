@@ -1,5 +1,5 @@
 (ns clj-sound.score
-  (:import UGen SawTooth SoundUtil)
+  (:import UGen SawTooth SoundUtil CubicSplineFast Player)
   (:require [clojure.string :as str]
             [clojure.walk :as walk]))
 
@@ -67,7 +67,7 @@
 
                 0 [mul 1
                    [SawTooth 1]]]]
-   0 [SawTooth [0 (- freq 100)
+   0 [SawTooth [0 [mul 2.01 freq]
 
                 0 [mul 1
                    [SawTooth 1.1]] ]]])
@@ -75,7 +75,9 @@
 (defn out [x]
   #_[0 [SawTooth 2000]
    2 [SawTooth 2000]]
-  {:b1 [0 ['noise 300]
+  {:b1 [0 ['noise {0 500
+                   50000 400
+                   100000 700}]
         0 ['noise 301]]                      ;['lazy-melody 0]
                                         ;100000 ['a-synth 200]
                                         ;200000 ['a-synth 301]
@@ -195,7 +197,9 @@
                                     (recur tail new-sequence2))))))))
 
               (int? (first (first node)))
-              :envelope
+              (Player. (- x-buf x)
+                       (double-array (keys node))
+                       (double-array (vals node)))
 
               :else
               (into {} (map (fn [[k v]]
@@ -266,8 +270,8 @@
               (= (first node) mul)
               (apply mul-bufs (map (partial process-node n x) (rest node))))
 
-        (= node :envelope)
-        (SoundUtil/filledBuf n 1.0)
+        (instance? Player node)
+        (.process node n (make-array Float/TYPE 0 0))
 
         (keyword? node)
         (node @buffers)))

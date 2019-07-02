@@ -102,6 +102,11 @@
   (def da (double-array (* (.getNumChannels w) (.getNumFrames w))))
   (.readFrames w da (.getNumFrames w))
 
+  (do (swap! db assoc :playing false)
+      (reset! score/buffers {})
+      (reset! x 0)
+      (reset! graph (score/out 0))
+      (swap! db assoc :playing true))
   )
 
 
