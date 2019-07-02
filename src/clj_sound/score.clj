@@ -1,5 +1,5 @@
 (ns clj-sound.score
-  (:import UGen SawTooth SoundUtil CubicSplineFast Player)
+  (:import UGen SawTooth SoundUtil CubicSplineFast Player EnvPlayer SineOsc)
   (:require [clojure.string :as str]
             [clojure.walk :as walk]))
 
@@ -63,22 +63,23 @@
    40000 ['a-synth 200]])
 
 (defn noise [x freq]
-  [0 [SawTooth [0 freq
-
-                0 [mul 1
-                   [SawTooth 1]]]]
-   0 [SawTooth [0 [mul 2.01 freq]
-
-                0 [mul 1
-                   [SawTooth 1.1]] ]]])
+  [mul {0 0
+        10000 4
+        50000 2
+        200010 0}
+   [SawTooth freq]]
+   )
 
 (defn out [x]
   #_[0 [SawTooth 2000]
    2 [SawTooth 2000]]
-  {:b1 [0 ['noise {0 500
-                   5 400
-                   10 700}]
-        10 ['noise 301]]                      ;['lazy-melody 0]
+  {:b1 [0 ['noise 300]
+        10000 ['noise 200]
+        20000 ['noise 400]
+        30000 ['noise 350]
+        40000 ['noise 100]
+        50000 ['noise 600]]
+                                        ;['lazy-melody 0]
                                         ;100000 ['a-synth 200]
                                         ;200000 ['a-synth 301]
                                         ;100000 ['a-synth 553]
@@ -202,7 +203,7 @@
                                     (recur tail new-sequence2))))))))
 
               (int? (first (first node)))
-              (Player. (- x-buf x)
+              (EnvPlayer. (- x-buf x)
                        (double-array (keys node))
                        (double-array (vals node)))
 
@@ -213,7 +214,7 @@
                                    v)])
                             node)))
 
-        (instance? Player node)
+        (instance? EnvPlayer node)
         (if (.-ended node)
           nil
           node)
@@ -230,7 +231,7 @@
 
 (defn add-bufs [& bufs]
   ;(println "add-bufs" bufs)
-  (SoundUtil/sumBuffers (into-array bufs)))
+  (SoundUtil/sumBuffers (into-array (remove nil? bufs))))
 
 (defn mul-bufs [& bufs]
                                         ;(println "add-bufs" bufs)
@@ -280,7 +281,7 @@
               (= (first node) mul)
               (apply mul-bufs (map (partial process-node n x) (rest node))))
 
-        (instance? Player node)
+        (instance? EnvPlayer node)
         (.process node n (make-array Float/TYPE 0 0))
 
         (keyword? node)

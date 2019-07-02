@@ -13,9 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package lecho.lib.hellocharts.utils;
-
-import java.util.List;
 
 /**
  * Performs spline interpolation given a set of control points.
@@ -23,11 +20,11 @@ import java.util.List;
  */
 public class SplineInterpolator {
 
-	private final List<Float> mX;
-	private final List<Float> mY;
-	private final float[] mM;
+	private final double[] mX;
+	private final double[] mY;
+	private final double[] mM;
 
-	private SplineInterpolator(List<Float> x, List<Float> y, float[] m) {
+	private SplineInterpolator(double[] x, double[] y, double[] m) {
 		mX = x;
 		mY = y;
 		mM = m;
@@ -51,24 +48,24 @@ public class SplineInterpolator {
 	 * @throws IllegalArgumentException
 	 *             if the X or Y arrays are null, have different lengths or have fewer than 2 values.
 	 */
-	public static SplineInterpolator createMonotoneCubicSpline(List<Float> x, List<Float> y) {
-		if (x == null || y == null || x.size() != y.size() || x.size() < 2) {
+	public static SplineInterpolator createMonotoneCubicSpline(double[] x, double[] y) {
+		if (x == null || y == null || x.length != y.length || x.length < 2) {
 			throw new IllegalArgumentException("There must be at least two control "
 					+ "points and the arrays must be of equal length.");
 		}
 
-		final int n = x.size();
-		float[] d = new float[n - 1]; // could optimize this out
-		float[] m = new float[n];
+		final int n = x.length;
+		double[] d = new double[n - 1]; // could optimize this out
+		double[] m = new double[n];
 
 		// Compute slopes of secant lines between successive points.
 		for (int i = 0; i < n - 1; i++) {
-			float h = x.get(i + 1) - x.get(i);
+			double h = x[i + 1] - x[i];
 			if (h <= 0f) {
 				throw new IllegalArgumentException("The control points must all "
 						+ "have strictly increasing X values.");
 			}
-			d[i] = (y.get(i + 1) - y.get(i)) / h;
+			d[i] = (y[i + 1] - y[i]) / h;
 		}
 
 		// Initialize the tangents as the average of the secants.
@@ -84,11 +81,11 @@ public class SplineInterpolator {
 				m[i] = 0f;
 				m[i + 1] = 0f;
 			} else {
-				float a = m[i] / d[i];
-				float b = m[i + 1] / d[i];
-				float h = (float) Math.hypot(a, b);
+				double a = m[i] / d[i];
+				double b = m[i + 1] / d[i];
+				double h = (double) Math.hypot(a, b);
 				if (h > 9f) {
-					float t = 3f / h;
+					double t = 3f / h;
 					m[i] = t * a * d[i];
 					m[i + 1] = t * b * d[i];
 				}
@@ -104,48 +101,48 @@ public class SplineInterpolator {
 	 *            The X value.
 	 * @return The interpolated Y = f(X) value.
 	 */
-	public float interpolate(float x) {
+	public double interpolate(double x) {
 		// Handle the boundary cases.
-		final int n = mX.size();
-		if (Float.isNaN(x)) {
+		final int n = mX.length;
+		if (Double.isNaN(x)) {
 			return x;
 		}
-		if (x <= mX.get(0)) {
-			return mY.get(0);
+		if (x <= mX[0]) {
+			return mY[0];
 		}
-		if (x >= mX.get(n - 1)) {
-			return mY.get(n - 1);
+		if (x >= mX[n - 1]) {
+			return mY[n - 1];
 		}
 
 		// Find the index 'i' of the last point with smaller X.
 		// We know this will be within the spline due to the boundary tests.
 		int i = 0;
-		while (x >= mX.get(i + 1)) {
+		while (x >= mX[i + 1]) {
 			i += 1;
-			if (x == mX.get(i)) {
-				return mY.get(i);
+			if (x == mX[i]) {
+				return mY[i];
 			}
 		}
 
 		// Perform cubic Hermite spline interpolation.
-		float h = mX.get(i + 1) - mX.get(i);
-		float t = (x - mX.get(i)) / h;
-		return (mY.get(i) * (1 + 2 * t) + h * mM[i] * t) * (1 - t) * (1 - t)
-				+ (mY.get(i + 1) * (3 - 2 * t) + h * mM[i + 1] * (t - 1)) * t * t;
+		double h = mX[i + 1] - mX[i];
+		double t = (x - mX[i]) / h;
+		return (mY[i] * (1 + 2 * t) + h * mM[i] * t) * (1 - t) * (1 - t)
+				+ (mY[i + 1] * (3 - 2 * t) + h * mM[i + 1] * (t - 1)) * t * t;
 	}
 
 	// For debugging.
 	@Override
 	public String toString() {
 		StringBuilder str = new StringBuilder();
-		final int n = mX.size();
+		final int n = mX.length;
 		str.append("[");
 		for (int i = 0; i < n; i++) {
 			if (i != 0) {
 				str.append(", ");
 			}
-			str.append("(").append(mX.get(i));
-			str.append(", ").append(mY.get(i));
+			str.append("(").append(mX[i]);
+			str.append(", ").append(mY[i]);
 			str.append(": ").append(mM[i]).append(")");
 		}
 		str.append("]");
