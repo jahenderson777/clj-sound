@@ -2,7 +2,7 @@ package ddf.minim.ugens;
 
 import java.util.Arrays;
 
-import ddf.minim.UGen;
+import ddf.minim.UGenMinim;
 
 //Moog 24 dB/oct resonant lowpass VCF
 //References: CSound source code, Stilson/Smith CCRMA paper.
@@ -33,7 +33,7 @@ import ddf.minim.UGen;
  * @author Damien Di Fede
  *
  */
-public class MoogFilter extends UGen
+public class MoogFilter extends UGenMinim
 {
 	/**
 	 * The MoogFilter.Type enumeration is used to set 

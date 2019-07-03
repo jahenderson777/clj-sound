@@ -1,3 +1,5 @@
+import javax.sound.sampled.SourceDataLine;
+
 public class SoundUtil {
     public static float[] sumBuffers(float[][] buffers) {
         int numBufs = buffers.length;
@@ -38,5 +40,9 @@ public class SoundUtil {
             }
         }
         return false;
+    }
+
+    public static void writeToLine(SourceDataLine line, byte[] ba, int offset, int count) {
+        line.write(ba, offset, count);
     }
 }

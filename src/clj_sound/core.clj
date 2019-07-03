@@ -5,9 +5,8 @@
             [clojure.data.int-map :as i]
             [clojure.data.avl :as avl])
   (:import (javax.sound.sampled AudioSystem DataLine$Info SourceDataLine AudioFormat AudioFormat$Encoding)
-           SimpleOsc
-           CubicSplineFast
-           WavFile)
+           SimpleOsc WavFile
+           UGen SoundUtil CubicSplineFast Player EnvPlayer)
   (:gen-class))
 
 (set! *unchecked-math* true)
@@ -28,6 +27,11 @@
 (def db (atom {:playing false
                :radius 50}))
 
+(def buffers (atom {}))
+
+(def x (atom 0))
+(def graph (atom (score/out 0)))
+
 (defn unsigned-byte [x]
   (byte (if (> x 127) (- x 256) x)))
 
@@ -37,33 +41,162 @@
             unsigned-byte)
        (range size)))
 
-(defn a-synth [x f]
-  (int (* 302 (m/qsin (* x
-                         (+ 0.01 (/ 0.2 f) (* 0.00003
-                                              (m/qsin (* x 0.00016)))))))))
+(defn execute [x {:keys [fn start-x] :as m}]
+  (println "execute " *ns* m)
+  (let [ret (apply (ns-resolve 'clj-sound.score (first fn)) x (rest fn))]
+                                        ;(println "ret " m)
+    (-> (if (map? ret)
+          ret
+          {:<- ret})
+        (assoc :fn fn :start-x start-x))))
 
-(defn signal [x]
-  (repeat 2 (+ (reduce + (map (partial a-synth x) (range 1 50 1)))
-                                        ;(* 0.01231 (signal (- x 2)))
-                                        ;(* 0.03231 (signal (- x 3)))
-               )))
+(defn ordered-buses [m]
+  (into (sorted-map) (dissoc m :<- :fn :start-x)))
 
-(def fa (into-array (repeat 2 (float-array 1024))))
+(defn construct [class & args]
+  (clojure.lang.Reflector/invokeConstructor class (into-array Object args)))
 
-(def o (SimpleOsc.))
+(defn build-graph [n x-buf x node]
+                                     ;   (println "build-graph " n x-buf x "node=*" node "*")
+  (cond (or (instance? clojure.lang.LazySeq node) (list? node) (vector? node))
+        (cond (int? (first node))
+              (build-graph n x-buf x {:seq :polyphonic
+                                      :start-x x
+                                      :data node})
 
-(.init o 48000)
+              (class? (first node))
+              (do            ;(println "constructing " (first node) (- x-buf x))
+                (concat [(construct (first node) (- x-buf x))] (mapv #(build-graph n x-buf x %)
+                                                                     (rest node))))
 
-(def buf-size 1024)
-(def x (atom 0))
-(def graph (atom (score/out 0)))
+              (or (fn? (first node))
+                  (instance? UGen (first node)))
+              (let [inputs (mapv #(build-graph n x-buf x %)
+                                 (rest node))]
+                (if (some nil? inputs)
+                  nil
+                  (concat [(first node)] inputs)))
 
+              (symbol? (first node))
+              (build-graph n x-buf x (execute x {:fn node :start-x x}))
+
+              :else
+              node)
+
+        (map? node)
+        (cond (:seq node)
+              (let [updated
+                    (-> node
+                        (update :data
+                                (fn [s]
+                                  (let [start-x (:start-x node)
+                                        x1 (- x-buf start-x)]
+                                    (loop [[t sequenced-node & tail] s
+                                           new-sequence '()]
+                                        ;(println sequenced-node "start-x=" start-x "x=" x "x1=" x1 "t=" t "(+ x1 n)=" (+ x1 n))
+                                      (let [sequenced-node2 (if (< t (+ x1 n))
+                                                              ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
+                                                              (build-graph n x-buf (+ start-x t) sequenced-node)
+                                                              sequenced-node)
+                                            new-sequence2 (if sequenced-node2
+                                                            (concat new-sequence [t sequenced-node2])
+                                                            new-sequence)] ; don't concat if nil (ended)
+                                        (if (or (not (seq? tail))
+                                                (>= t (+ x1 n)))
+                                          (concat new-sequence2 tail)
+                                          (recur tail new-sequence2))))))))]
+                (if (seq (:data updated))
+                  updated
+                  nil))
+
+              (int? (first (first node)))
+              (EnvPlayer. (- x-buf x)
+                          (double-array (keys node))
+                          (double-array (vals node)))
+
+              :else
+              (let [buffers (dissoc node :fn :start-x)
+                    others (select-keys node [:fn :start-x])
+                    processed-buffers (map (partial build-graph n x-buf x) (vals buffers))]
+                (if (some identity processed-buffers)
+                  (merge (zipmap (keys buffers) processed-buffers)
+                         others)
+                  nil)))
+
+        (instance? EnvPlayer node)
+        (if (.-ended node)
+          nil
+          node)
+
+        :else
+        node))
+
+(defn add-bufs [& bufs]
+  ;(println "add-bufs" bufs)
+  (SoundUtil/sumBuffers (into-array (remove nil? bufs))))
+
+(defn mul-bufs [& bufs]
+                                        ;(println "add-bufs" bufs)
+  (SoundUtil/multiplyBuffers (into-array bufs)))
+
+(defn process-node [n x node]
+                                        ;(println "process-node" node)
+                                        ;(Thread/sleep 100)
+  (cond (and (map? node)
+             (:seq node))
+        (let [start-x (:start-x node)
+              node (:data node)
+              x1 (- x start-x)]
+          (loop [[t sequenced-node & tail] node
+                 bufs-to-sum []]
+                                        ;(println "bufs-to-sum=" bufs-to-sum "t, start-x, n, tail" t start-x n tail)
+            (let [bufs-to-sum (if (< t (+ x1 n))
+                                (conj bufs-to-sum (process-node n x sequenced-node))
+                                bufs-to-sum)]
+              (if (or (not (seq? tail))
+                      (>= t (+ x1 n)))
+                (do                     ;(println bufs-to-sum)
+                  (apply add-bufs bufs-to-sum))
+                (recur tail bufs-to-sum)))))
+
+        (map? node)
+        (let [x1 (or (:x1 node) x)]
+          (do (doseq [[bus v] (ordered-buses node)]
+                (swap! buffers update bus (fn [b] (add-bufs (or b (float-array n))
+                                                           (process-node n x1 v)))))
+              (process-node n x1 (:<- node))))
+
+        (number? node)
+        (do                             ;(println "filling buffer " node)
+                                        ;["foo"]
+          (SoundUtil/filledBuf n node)
+          )
+
+        (or (instance? clojure.lang.LazySeq node) (list? node) (vector? node))
+        (cond                           ;(int? (first node))
+              
+
+          (instance? UGen (first node))
+          (do                           ;(println "process" (first node))
+            (.process (first node) n (into-array (map (partial process-node n x) (rest node)))))
+
+          (= (first node) *)
+          (let [inputs (remove nil? (map (partial process-node n x) (rest node)))]
+            (if (seq inputs)
+              (apply mul-bufs inputs)
+              nil)))
+
+        (instance? EnvPlayer node)
+        (.process node n (make-array Float/TYPE 0 0))
+
+        (keyword? node)
+        (node @buffers)))
 
 (defn build-buffer [sample-position]
-  (reset! score/buffers {})
-  (swap! graph (partial score/build-graph buf-size @x @x))
-  (let [fa (score/process-node buf-size @x @graph)]
-    (swap! x (partial + buf-size))
+  (reset! buffers {})
+  (swap! graph (partial build-graph buffer-size @x @x))
+  (let [fa (process-node buffer-size @x @graph)]
+    (swap! x (partial + buffer-size))
     (->> (interleave fa fa)
          (map #(int (* 1000 %)))
          (mapcat (partial little-endian 2))
@@ -72,7 +205,8 @@
 (defn play-loop [line buffer player is-playing]
   (when buffer
     (send player (fn [sample-position]
-                   (.write line buffer 0 (* 4 buffer-size))
+                   ;(println (type line))
+                   (.write ^SourceDataLine line buffer 0 (* 4 buffer-size))
                    (+ sample-position buffer-size))))
   (when is-playing
     (let [new-buffer (build-buffer @player)]
@@ -82,8 +216,8 @@
 (defn start-audio []
   (def thread (Thread. #(play-loop
                          (doto (AudioSystem/getLine (DataLine$Info. SourceDataLine audio-format))
-                           (.open audio-format)
-                           (.start))
+                           .open
+                           .start)
                          nil player (:playing @db))))
   (.start thread))
 
@@ -95,8 +229,9 @@
 
 
 (comment
-  (doall (for [i (range 1000)] (do (Thread/sleep 5) (swap! data-state assoc :radius (rand-int 2000)))))
-  (ui/ui db)
+ 
+  (ui/launch
+         )
 
   (def w (WavFile/openWavFile (java.io.File. "resources/Electro-Tom.wav")))
   (def da (double-array (* (.getNumChannels w) (.getNumFrames w))))
@@ -104,7 +239,7 @@
 
   (do (swap! db assoc :playing false)
       (Thread/sleep 1000)
-      (reset! score/buffers {})
+      (reset! buffers {})
       (reset! x 0)
       (reset! graph (score/out 0))
       (swap! db assoc :playing true))

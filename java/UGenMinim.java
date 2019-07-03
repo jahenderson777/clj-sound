@@ -39,7 +39,7 @@ import java.util.Arrays;
  * 
  * @author Damien Di Fede, Anderson Mills
  */
-public abstract class UGen
+public abstract class UGenMinim
 {
 	/**
 	 * This enum is used to specify the InputType of the UGenInput.
@@ -93,7 +93,7 @@ public abstract class UGen
 	 */
 	public final class UGenInput
 	{
-		private UGen		m_incoming;
+		private UGenMinim		m_incoming;
 		private InputType	m_inputType;
 		private float[]		m_lastValues;
 
@@ -177,9 +177,9 @@ public abstract class UGen
 		 * 
 		 * @return the UGen that owns this UGenInput
 		 */
-		public UGen getOuterUGen()
+		public UGenMinim getOuterUGen()
 		{
-			return UGen.this;
+			return UGenMinim.this;
 		}
 
 		/**
@@ -190,7 +190,7 @@ public abstract class UGen
 		 * 
 		 * @return the UGen that is patched to this UGenInput
 		 */
-		public UGen getIncomingUGen()
+		public UGenMinim getIncomingUGen()
 		{
 			return m_incoming;
 		}
@@ -203,7 +203,7 @@ public abstract class UGen
 		 * @param in 
 		 * 			the UGen being patched to this input
 		 */
-		public void setIncomingUGen(UGen in)
+		public void setIncomingUGen(UGenMinim in)
 		{
 			m_incoming = in;
 			if ( m_incoming != null )
@@ -304,14 +304,14 @@ public abstract class UGen
 		 */
 		public void printInput()
 		{
-			Minim.debug( "UGenInput: " + " signal = " + getInputTypeAsString() + " " + ( m_incoming != null ) );
+			//Minim.debug( "UGenInput: " + " signal = " + getInputTypeAsString() + " " + ( m_incoming != null ) );
 		}
 	} // ends the UGenInput inner class
 
 	/**
 	 * Constructor for a UGen.
 	 */
-	protected UGen()
+	protected UGenMinim()
 	{
 		m_allInputs 	= new ArrayList<UGenInput>();
 		m_lastValues 	= new float[0];
@@ -339,7 +339,7 @@ public abstract class UGen
 	 * </pre>
 	 */
 	// ddf: this is final because we never want people to override it.
-	public final UGen patch(UGen connectToUGen)
+	public final UGenMinim patch(UGenMinim connectToUGen)
 	{
 		setSampleRate( connectToUGen.m_sampleRate );
 		// jam3: connecting to a UGen is the same as connecting to it's first
@@ -348,7 +348,7 @@ public abstract class UGen
 		// TODO jam3: m_nOutputs should only increase when this chain will be
 		// ticked!
 		m_nOutputs += 1;
-		Minim.debug( "m_nOutputs = " + m_nOutputs );
+		//Minim.debug( "m_nOutputs = " + m_nOutputs );
 		return connectToUGen;
 	}
 
@@ -359,14 +359,14 @@ public abstract class UGen
 	 * 			The UGenInput to patch to.
 	 * @return the UGen that owns connectToInput
 	 */
-	public final UGen patch(UGenInput connectToInput)
+	public final UGenMinim patch(UGenInput connectToInput)
 	{
 		setSampleRate( connectToInput.getOuterUGen().m_sampleRate );
 		connectToInput.setIncomingUGen( this );
 		// TODO jam3: m_nOutputs should only increase when this chain will be
 		// ticked!
 		m_nOutputs += 1;
-		Minim.debug( "m_nOutputs = " + m_nOutputs );
+		//Minim.debug( "m_nOutputs = " + m_nOutputs );
 
 		return connectToInput.getOuterUGen();
 	}
@@ -379,13 +379,13 @@ public abstract class UGen
 	 * @param audioOutput
 	 *            The AudioOutput you want to connect this UGen to.
 	 */
-	public final void patch(AudioOutput audioOutput)
+	/*public final void patch(AudioOutput audioOutput)
 	{
-		Minim.debug( "Patching " + this + " to the output " + audioOutput + "." );
+		//Minim.debug( "Patching " + this + " to the output " + audioOutput + "." );
 		setSampleRate( audioOutput.sampleRate() );
 		setChannelCount( audioOutput.getFormat().getChannels() );
 		patch( audioOutput.bus );
-	}
+    }*/
 
 	/**
 	 * If you want to do something other than the default behavior when your
@@ -399,15 +399,15 @@ public abstract class UGen
 	// ddf: Protected because users of UGens should never call this directly.
 	// Sub-classes can override this to control what happens when something
 	// is patched to them. See the Summer class.
-	protected void addInput(UGen input)
+	protected void addInput(UGenMinim input)
 	{
 		// jam3: This default behavior is that the incoming signal will be added
 		// to the first input in the m_allInputs list.
-		Minim.debug( "UGen addInput called." );
+		//Minim.debug( "UGen addInput called." );
 		// TODO change input checking to an Exception?
 		if ( m_allInputs.size() > 0 )
 		{
-			Minim.debug( "Initializing default input on something" );
+			//Minim.debug( "Initializing default input on something" );
 			this.m_allInputs.get( 0 ).setIncomingUGen( input );
 		}
 		else
@@ -426,11 +426,11 @@ public abstract class UGen
 	 * @param audioOutput
 	 *            The AudioOutput this UGen should be disconnected from.
 	 */
-	public final void unpatch( AudioOutput audioOutput )
+	/*public final void unpatch( AudioOutput audioOutput )
 	{
-		Minim.debug( "Unpatching " + this + " from the output " + audioOutput + "." );
+		//Minim.debug( "Unpatching " + this + " from the output " + audioOutput + "." );
 		unpatch( audioOutput.bus );
-	}
+    }*/
 
 	/**
 	 * Remove this UGen as an input of fromUGen.
@@ -439,12 +439,12 @@ public abstract class UGen
 	 * 			The UGen to unpatch from.
 	 * 
 	 */
-	public final void unpatch( UGen fromUGen )
+	public final void unpatch( UGenMinim fromUGen )
 	{
 		fromUGen.removeInput( this );
 		// TODO m_nOutputs needs to be updated as the converse of patch above.
 		m_nOutputs -= 1;
-		Minim.debug( "m_nOutputs = " + m_nOutputs );
+		//Minim.debug( "m_nOutputs = " + m_nOutputs );
 	}
 
 	/**
@@ -458,9 +458,9 @@ public abstract class UGen
 	 * 			the UGen to remove as an input to this UGen
 	 */
 	// This currently does nothing, but is overridden in Summer.
-	protected void removeInput(UGen input)
+	protected void removeInput(UGenMinim input)
 	{
-		Minim.debug( "UGen removeInput called." );
+		//Minim.debug( "UGen removeInput called." );
 		// see if any of our ugen inputs currently have input as the incoming ugen
 		// set their incoming ugen to null if that's the case
 		for ( int i = 0; i < m_allInputs.size(); i++ )
@@ -588,7 +588,7 @@ public abstract class UGen
 			// if one doesn't it's probably a bug!
 			for ( int i = 0; i < m_allInputs.size(); ++i )
 			{
-				UGen inputIncoming = m_allInputs.get( i ).getIncomingUGen();
+				UGenMinim inputIncoming = m_allInputs.get( i ).getIncomingUGen();
 				if ( inputIncoming != null )
 				{
 					inputIncoming.setSampleRate( newSampleRate );
@@ -647,10 +647,10 @@ public abstract class UGen
 	{
 		for ( int i = 0; i < m_allInputs.size(); i++ )
 		{
-			Minim.debug( "m_allInputs " + i + " " );
+			//Minim.debug( "m_allInputs " + i + " " );
 			if ( m_allInputs.get( i ) == null )
 			{
-				Minim.debug( "null" );
+				//Minim.debug( "null" );
 			}
 			else
 			{
