@@ -67,18 +67,25 @@
         10000 4
         50000 2
         200010 0}
-   [SawTooth freq]]
-   )
+   [SineOsc freq]]
+  )
+
+(defn drum [x]
+  [SineOsc {0 700
+            1000 170
+            10000 20}])
 
 (defn out [x]
   #_[0 [SawTooth 2000]
    2 [SawTooth 2000]]
   {:b1 [0 ['noise 300]
-        10000 ['noise 200]
-        20000 ['noise 400]
-        30000 ['noise 350]
-        40000 ['noise 100]
-        50000 ['noise 600]]
+        100000 ['drum]
+        120000 ['drum]
+        160000 ['drum]
+        200000 ['noise 400]
+        300000 ['noise 350]
+        400000 ['noise 100]
+        500000 ['noise 600]]
                                         ;['lazy-melody 0]
                                         ;100000 ['a-synth 200]
                                         ;200000 ['a-synth 301]
