@@ -103,6 +103,7 @@
   (.readFrames w da (.getNumFrames w))
 
   (do (swap! db assoc :playing false)
+      (Thread/sleep 1000)
       (reset! score/buffers {})
       (reset! x 0)
       (reset! graph (score/out 0))

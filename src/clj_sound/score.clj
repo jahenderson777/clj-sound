@@ -63,11 +63,11 @@
    40000 ['a-synth 200]])
 
 (defn noise [x freq]
-  [mul {0 0
-        10000 4
+  [mul {0 (rand-int 4)
+        10000 :cc.10
         50000 2
         200010 0}
-   [SawTooth freq]]
+   [SineOsc freq]]
    )
 
 (defn out [x]
@@ -154,7 +154,7 @@
   (clojure.lang.Reflector/invokeConstructor class (into-array Object args)))
 
 (defn build-graph [n x-buf x node]
-  ;(println "build-graph " n x-buf x "node=*" node "*")
+                                        ;(println "build-graph " n x-buf x "node=*" node "*")
   (cond (or (instance? clojure.lang.LazySeq node) (list? node) (vector? node))
         (cond (int? (first node))
               (build-graph n x-buf x {:seq :polyphonic
@@ -162,9 +162,9 @@
                                       :data node})
 
               (class? (first node))
-              (do ;(println "constructing " (first node) (- x-buf x))
-                  (concat [(construct (first node) (- x-buf x))] (mapv #(build-graph n x-buf x %)
-                                                                       (rest node))))
+              (do            ;(println "constructing " (first node) (- x-buf x))
+                (concat [(construct (first node) (- x-buf x))] (mapv #(build-graph n x-buf x %)
+                                                                     (rest node))))
 
               (or (fn? (first node))
                   (instance? UGen (first node)))
@@ -182,37 +182,49 @@
 
         (map? node)
         (cond (:seq node)
-              (-> node
-                  (update :data
-                          (fn [s]
-                            (let [start-x (:start-x node)
-                                  x1 (- x-buf start-x)]
-                              (loop [[t sequenced-node & tail] s
-                                     new-sequence '()]
-                                ;(println sequenced-node "start-x=" start-x "x=" x "x1=" x1 "t=" t "(+ x1 n)=" (+ x1 n))
-                                (let [sequenced-node2 (if (< t (+ x1 n))
-                                                        ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
-                                                        (build-graph n x-buf (+ start-x t) sequenced-node)
-                                                        sequenced-node)
-                                      new-sequence2 (if sequenced-node2
-                                                      (concat new-sequence [t sequenced-node2])
-                                                      new-sequence)] ; don't concat if nil (ended)
-                                  (if (or (not (seq? tail))
-                                          (>= t (+ x1 n)))
-                                    (concat new-sequence2 tail)
-                                    (recur tail new-sequence2))))))))
+              (let [updated
+                    (-> node
+                        (update :data
+                                (fn [s]
+                                  (let [start-x (:start-x node)
+                                        x1 (- x-buf start-x)]
+                                    (loop [[t sequenced-node & tail] s
+                                           new-sequence '()]
+                                        ;(println sequenced-node "start-x=" start-x "x=" x "x1=" x1 "t=" t "(+ x1 n)=" (+ x1 n))
+                                      (let [sequenced-node2 (if (< t (+ x1 n))
+                                                              ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
+                                                              (build-graph n x-buf (+ start-x t) sequenced-node)
+                                                              sequenced-node)
+                                            new-sequence2 (if sequenced-node2
+                                                            (concat new-sequence [t sequenced-node2])
+                                                            new-sequence)] ; don't concat if nil (ended)
+                                        (if (or (not (seq? tail))
+                                                (>= t (+ x1 n)))
+                                          (concat new-sequence2 tail)
+                                          (recur tail new-sequence2))))))))]
+                (if (seq (:data updated))
+                  updated
+                  nil))
 
               (int? (first (first node)))
               (EnvPlayer. (- x-buf x)
-                       (double-array (keys node))
-                       (double-array (vals node)))
+                          (double-array (keys node))
+                          (double-array (vals node)))
 
               :else
-              (into {} (map (fn [[k v]]
-                              [k (if (not (#{:fn :start-x} k))
-                                   (build-graph n x-buf x v)
-                                   v)])
-                            node)))
+              (let [buffers (dissoc node :fn :start-x)
+                    others (select-keys node [:fn :start-x])
+                    processed-buffers (map (partial build-graph n x-buf x) (vals buffers))]
+                (if (some identity processed-buffers)
+                  (merge (zipmap (keys buffers) processed-buffers)
+                         others)
+                  nil))
+
+              #_(into {} (map (fn [[k v]]
+                                [k (if (not (#{:fn :start-x} k))
+                                     (build-graph n x-buf x v)
+                                     v)])
+                              node)))
 
         (instance? EnvPlayer node)
         (if (.-ended node)
@@ -238,8 +250,8 @@
   (SoundUtil/multiplyBuffers (into-array bufs)))
 
 (defn process-node [n x node]
-  ;(println "process-node" node)
-  ;(Thread/sleep 100)
+                                        ;(println "process-node" node)
+                                        ;(Thread/sleep 100)
   (cond (and (map? node)
              (:seq node))
         (let [start-x (:start-x node)
@@ -247,14 +259,14 @@
               x1 (- x start-x)]
           (loop [[t sequenced-node & tail] node
                  bufs-to-sum []]
-            ;(println "bufs-to-sum=" bufs-to-sum "t, start-x, n, tail" t start-x n tail)
+                                        ;(println "bufs-to-sum=" bufs-to-sum "t, start-x, n, tail" t start-x n tail)
             (let [bufs-to-sum (if (< t (+ x1 n))
                                 (conj bufs-to-sum (process-node n x sequenced-node))
                                 bufs-to-sum)]
               (if (or (not (seq? tail))
                       (>= t (+ x1 n)))
-                (do ;(println bufs-to-sum)
-                    (apply add-bufs bufs-to-sum))
+                (do                     ;(println bufs-to-sum)
+                  (apply add-bufs bufs-to-sum))
                 (recur tail bufs-to-sum)))))
 
         (map? node)
@@ -265,21 +277,24 @@
               (process-node n x1 (:<- node))))
 
         (number? node)
-        (do ;(println "filling buffer " node)
-            ;["foo"]
-            (SoundUtil/filledBuf n node)
-            )
+        (do                             ;(println "filling buffer " node)
+                                        ;["foo"]
+          (SoundUtil/filledBuf n node)
+          )
 
         (or (instance? clojure.lang.LazySeq node) (list? node) (vector? node))
-        (cond ;(int? (first node))
+        (cond                           ;(int? (first node))
               
 
           (instance? UGen (first node))
-          (do ;(println "process" (first node))
-              (.process (first node) n (into-array (map (partial process-node n x) (rest node)))))
+          (do                           ;(println "process" (first node))
+            (.process (first node) n (into-array (map (partial process-node n x) (rest node)))))
 
-              (= (first node) mul)
-              (apply mul-bufs (map (partial process-node n x) (rest node))))
+          (= (first node) mul)
+          (let [inputs (remove nil? (map (partial process-node n x) (rest node)))]
+            (if (seq inputs)
+              (apply mul-bufs inputs)
+              nil)))
 
         (instance? EnvPlayer node)
         (.process node n (make-array Float/TYPE 0 0))
