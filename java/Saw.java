@@ -1,8 +1,8 @@
-public class SawTooth implements UGen{
+public class Saw implements UGen{
     private int initialX = 0;
     private float y = -1;
 
-    public SawTooth(int initialX) {
+    public Saw(int initialX) {
         this.initialX = initialX;
     }
 

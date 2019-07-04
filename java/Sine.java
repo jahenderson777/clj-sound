@@ -1,4 +1,4 @@
-public class SineOsc implements UGen {
+public class Sine implements UGen {
     private static float[] genWaveTable() {
         float[] waveTable = new float[65535];
         float x = (float)(2.0D * Math.PI / 65535.0D);
@@ -9,12 +9,12 @@ public class SineOsc implements UGen {
         return waveTable;
 
     }
-    private static float[] waveTable = SineOsc.genWaveTable();
+    private static float[] waveTable = Sine.genWaveTable();
     private int initialX = 0;
     private double x = 0;
     public boolean ended = false;
 
-    public SineOsc(int initialX) {
+    public Sine(int initialX) {
         this.initialX = initialX;
     }
 
@@ -23,7 +23,7 @@ public class SineOsc implements UGen {
         float[] rate = inputs[0];
 
         for (int i = - this.initialX; i<count; i++) {
-            out[i] = SineOsc.waveTable[(int)this.x];
+            out[i] = Sine.waveTable[(int)this.x];
             this.x += rate[i];
             if ((int)this.x >= 65535)
                 this.x -= 65535;

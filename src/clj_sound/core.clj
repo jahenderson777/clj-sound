@@ -65,13 +65,20 @@
               (concat [(construct (first node) (- x-buf x))] (mapv #(build-graph n x-buf x %)
                                                                    (rest node)))
 
+
               (or (fn? (first node))
                   (instance? UGen (first node)))
               (let [inputs (mapv #(build-graph n x-buf x %)
                                  (rest node))]
-                (if (some nil? inputs)
-                  nil
-                  (concat [(first node)] inputs)))
+                (cond (and (= + (first node))
+                           (every? nil? inputs))
+                      nil
+
+                      (some nil? inputs)
+                      nil
+
+                      :else
+                      (concat [(first node)] inputs)))
 
               (symbol? (first node))
               (build-graph n x-buf x (execute x {:fn node :start-x x}))
@@ -89,7 +96,7 @@
                                         x1 (- x-buf start-x)]
                                     (loop [[t sequenced-node & tail] s
                                            new-sequence '()]
-                                      ;(println sequenced-node "start-x=" start-x "x=" x "x1=" x1 "t=" t "(+ x1 n)=" (+ x1 n))
+                                        ;(println sequenced-node "start-x=" start-x "x=" x "x1=" x1 "t=" t "(+ x1 n)=" (+ x1 n))
                                       (let [sequenced-node2 (if (< t (+ x1 n))
                                                               ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
                                                               (build-graph n x-buf (+ start-x t) sequenced-node)
@@ -146,7 +153,9 @@
                                 bufs-to-sum)]
               (if (or (not (seq? tail))
                       (>= t (+ x1 n)))
-                (apply add-bufs bufs-to-sum)
+                (if (seq bufs-to-sum)
+                  (apply add-bufs bufs-to-sum)
+                  nil)
                 (recur tail bufs-to-sum)))))
 
         (map? node)
@@ -163,10 +172,12 @@
         (cond (instance? UGen (first node))
               (.process (first node) n (into-array (map (partial process-node n x) (rest node))))
 
-              (= (first node) *)
+              (#{* +} (first node))
               (let [inputs (remove nil? (map (partial process-node n x) (rest node)))]
                 (if (seq inputs)
-                  (apply mul-bufs inputs)
+                  (apply (cond (= + (first node)) add-bufs
+                               (= * (first node)) mul-bufs)
+                         inputs)
                   nil)))
 
         (instance? EnvPlayer node)

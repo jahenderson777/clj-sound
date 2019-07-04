@@ -1,46 +1,51 @@
 (ns clj-sound.score
-  (:import SawTooth SineOsc)
+  (:import Saw Sine)
   (:require [clojure.string :as str]))
 
 
 (defn a-synth [x freq]
   [* {0 1 50 0}
-   [SawTooth freq]])
+   [Saw freq]])
 
 (defn melody [x freq]
   [0 ['a-synth freq]
    40000 ['a-synth 200]])
 
 (defn drum [x]
-  [SineOsc {0 700
+  [Sine {0 700
             1000 170
             10000 20}])
 
 (defn fm-synth [x freq]
-  [* {0 (rand-int 4)
-      (+ 500 (* 1000 (rand-int 100))) 1
-      140010 0}
-   [SineOsc [* freq
-             [0 [* {0 0
-                    80000 1
-                    100000 0}
-                 [SineOsc (* freq 3)]]
-              0 1]]]])
+  [0 [* {0 1 15000 0.4 40000 0}
+      [Sine [+ :b01 (/ freq 1.5)]]]
+   15000 [Sine [+ freq
+                   [* {0 99
+                       40000 (/ freq 2)
+                       200000 0}
+                    [Sine (* freq 3)]]]]
+   90000 [* {0 1 15000 0.4 40000 0}
+          [Sine (* freq 0.75)]]])
 
 (defn noise [x freq]
   [* {0 (rand-int 4)
       (+ 500 (* 1000 (rand-int 100))) 1
-      100010 0}
-   [0 ['fm-synth freq]
-    0 ['drum]]])
+      150000 0.8
+      200010 0}
+   [+ ['fm-synth freq]
+    ;['drum]
+    ]])
 
 (defn lazy-melody [x n]
   (lazy-seq
-   (concat [(* 10000 n) ['noise (* 100 (inc (rand-int 9)))]]
+   (concat [(* 30000 n) ['noise (* 100 (inc (rand-int 9)))]]
+           (when (= 0 (mod n 4))
+             [(+ 14000 (* 30000 n)) ['noise (* 200 (inc (rand-int 7)))]])
            (lazy-melody x (inc n)))))
 
 (defn out [x]
-  {:b1 ['lazy-melody 0]
+  {:b01 [* 4 [Sine 12.1]]
+   :b1 ['lazy-melody 0]
    :<- :b1})
 
 
@@ -96,7 +101,7 @@
                    :x 1000
                    :<- [mul
                         {0 1 50 0}
-                        [SawTooth freq]]}
+                        [Saw freq]]}
                 4 ['a-synth 200]]}
         10 ['melody 300]]
    :b2 [5 ['melody 200]
