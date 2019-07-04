@@ -1,4 +1,5 @@
 import javax.sound.sampled.SourceDataLine;
+import javax.sound.sampled.*;
 
 public class SoundUtil {
     public static float[] sumBuffers(float[][] buffers) {
@@ -45,4 +46,44 @@ public class SoundUtil {
     public static void writeToLine(SourceDataLine line, byte[] ba, int offset, int count) {
         line.write(ba, offset, count);
     }
+
+    public static float maxFromBuf(float[] buf) {
+        float max = 0;
+        for (int i = 0; i<buf.length; i++) {
+            if (buf[i]>max)
+                max = buf[i];
+        }
+        return max;
+    }
+
+    public static void listTargetDataLines() {
+        System.out.println("Available Mixers:");
+        Mixer.Info[] aInfos = AudioSystem.getMixerInfo();
+        for (int i = 0; i < aInfos.length; i++) {
+            Mixer mixer = AudioSystem.getMixer(aInfos[i]);
+            // mixer.open();
+            Line.Info[] lines = mixer.getTargetLineInfo();
+            System.out.println(aInfos[i].getName());
+            for (int j = 0; j < lines.length; j++) {
+                System.out.println("  " + lines[j].toString());
+                if (lines[j] instanceof DataLine.Info) {
+                    AudioFormat[] formats = ((DataLine.Info) lines[j]).getFormats();
+                    for (int k = 0; k < formats.length; k++) {
+                        System.out.println("    " + formats[k].toString());
+                    }
+                }
+            }
+        }
+    }
+
+    public static Mixer getLineByName(String name) {
+        Mixer.Info[] aInfos = AudioSystem.getMixerInfo();
+        for (int i = 0; i < aInfos.length; i++) {
+            Mixer mixer = AudioSystem.getMixer(aInfos[i]);
+            if (aInfos[i].getName().equals(name))
+                return mixer;
+        }
+        return null;
+    }
+
 }

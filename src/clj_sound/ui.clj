@@ -6,7 +6,7 @@
 (def *progress
   (atom 0.3))
 
-(defn canvas-progress-bar [{:keys [progress width height]}]
+(defn canvas-progress-bar [{:keys [level width height]}]
   {:fx/type :canvas
    :width width
    :height height
@@ -16,13 +16,13 @@
              (.setFill Color/LIGHTGREY)
              (.fillRoundRect 0 0 width height height height)
              (.setFill Color/GREEN)
-             (.fillRoundRect 0 0 (* width progress) height height height)))})
+             (.fillRoundRect 0 0 (* width level) height height height)))})
 
 (def renderer
   (fx/create-renderer
     :middleware
     (fx/wrap-map-desc
-      (fn [progress]
+      (fn [db]
         {:fx/type :stage
          :showing true
          :scene {:fx/type :scene
@@ -32,16 +32,16 @@
                         :children [{:fx/type canvas-progress-bar
                                     :width 100
                                     :height 10
-                                    :progress progress}
+                                    :level (:level db)}
                                    {:fx/type :slider
                                     :pref-width 100
                                     :min 0
                                     :max 1
-                                    :value progress
-                                    :on-value-changed #(reset! *progress %)}]}}}))))
+                                    :value 0 ;(:master-vol db)
+                                    :on-value-changed #(swap! *progress %)}]}}}))))
 
-(defn launch []
-  (fx/mount-renderer *progress renderer))
+(defn launch [*db]
+  (fx/mount-renderer *db renderer))
 
 
 

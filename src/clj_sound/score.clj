@@ -4,51 +4,43 @@
 
 
 (defn a-synth [x freq]
-  [*
-   {0 1 50 0}
-   [SawTooth freq]
-    ;30000 [SawTooth freq]
-    ;60000 [SawTooth freq]
-    ])
-
-
+  [* {0 1 50 0}
+   [SawTooth freq]])
 
 (defn melody [x freq]
   [0 ['a-synth freq]
    40000 ['a-synth 200]])
-
-(defn noise [x freq]
-  [* {0 (rand-int 4)
-      (+ 500 (* 1000 (rand-int 100))) 1
-      100010 0}
-   [SineOsc freq]])
-
-(defn lazy-melody [x n]
-  (lazy-seq (cons (+ (rand-int 1000) (* 10000 n)) (cons ['noise (* 100 (inc (rand-int 13)))] (lazy-melody x (inc n))))))
 
 (defn drum [x]
   [SineOsc {0 700
             1000 170
             10000 20}])
 
+(defn fm-synth [x freq]
+  [* {0 (rand-int 4)
+      (+ 500 (* 1000 (rand-int 100))) 1
+      140010 0}
+   [SineOsc [* freq
+             [0 [* {0 0
+                    80000 1
+                    100000 0}
+                 [SineOsc (* freq 3)]]
+              0 1]]]])
+
+(defn noise [x freq]
+  [* {0 (rand-int 4)
+      (+ 500 (* 1000 (rand-int 100))) 1
+      100010 0}
+   [0 ['fm-synth freq]
+    0 ['drum]]])
+
+(defn lazy-melody [x n]
+  (lazy-seq
+   (concat [(* 10000 n) ['noise (* 100 (inc (rand-int 9)))]]
+           (lazy-melody x (inc n)))))
+
 (defn out [x]
-  #_[0 [SawTooth 2000]
-   2 [SawTooth 2000]]
-  {:b1 [0 ['lazy-melody 0]
-        100000 ['drum]
-        120000 ['drum]
-        160000 ['drum]
-        200000 ['noise 400]
-        300000 ['noise 350]
-        400000 ['noise 100]
-        ]
-                                        ;['lazy-melody 0]
-                                        ;100000 ['a-synth 200]
-                                        ;200000 ['a-synth 301]
-                                        ;100000 ['a-synth 553]
-                                        ;400000 ['a-synth 551]
-   
-   ;:b0 ['a-synth 10]
+  {:b1 ['lazy-melody 0]
    :<- :b1})
 
 
