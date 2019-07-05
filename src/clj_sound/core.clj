@@ -2,6 +2,7 @@
   (:require [fastmath.core :as m]
             [clj-sound.ui :as ui]
             [clj-sound.score :as score]
+            [clj-sound.db :as db]
             [clojure.data.int-map :as i]
             [clojure.data.avl :as avl])
   (:import (javax.sound.sampled Mixer Mixer$Info AudioSystem DataLine$Info SourceDataLine AudioFormat AudioFormat$Encoding)
@@ -23,14 +24,7 @@
 (def buffer-size 1024)
 (def player (agent 0))
 
-(def db (atom {:playing false
-               :level 0.0
-               :master-vol 1.0}))
-
 (def buffers (atom {}))
-
-(def x (atom 0))
-(def graph (atom (score/out 0)))
 
 (defn unsigned-byte [x]
   (byte (if (> x 127) (- x 256) x)))
@@ -41,7 +35,7 @@
             unsigned-byte)
        (range size)))
 
-(defn execute [x {:keys [fn start-x] :as m}]
+(defn execute [x {:keys [fn start-x]}]
   (let [ret (apply (ns-resolve 'clj-sound.score (first fn)) x (rest fn))]
     (-> (if (map? ret)
           ret
@@ -59,20 +53,25 @@
 (defn build-graph-seq [n x-buf x node]
   (let [updated
         (-> node
-            (update :data
-                    (fn [s]
-                      (let [start-x (:start-x node)
-                            x1 (- x-buf start-x)]
-                        (loop [[t sequenced-node & tail] s
-                               new-sequence '()]
-                          (let [new-sequence2
-                                (cond->> sequenced-node
-                                  (< t (+ x1 n)) (build-graph n x-buf (+ start-x t)) ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
-                                  true (#(concat new-sequence [t %])))]
-                            (if (or (not (seq? tail))
-                                    (>= t (+ x1 n)))
-                              (concat new-sequence2 tail)
-                              (recur tail new-sequence2))))))))]
+            (update
+             :data
+             (fn [s]
+               (let [start-x (:start-x node)
+                     x1 (- x-buf start-x)]
+                 (loop [[t sequenced-node & tail] s
+                        new-sequence '()]
+                   (let [new-sequence2
+                         (as-> sequenced-node $
+                           (if (< t (+ x1 n))
+                             (build-graph n x-buf (+ start-x t) $) ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
+                             $)
+                           (if $
+                             (concat new-sequence [t $])
+                             $))]
+                     (if (or (not (seq? tail))
+                             (>= t (+ x1 n)))
+                       (concat new-sequence2 tail)
+                       (recur tail new-sequence2))))))))]
     (when (seq (:data updated))
       updated)))
 
@@ -174,26 +173,39 @@
         (keyword? node)
         (node @buffers)))
 
+(def debug-timings (volatile! []))
+
 (defn build-buffer [sample-position]
+  (vswap! debug-timings (fn [v]
+                          (take 100 (concat [(System/nanoTime)] v))))
   (reset! buffers {})
-  (swap! graph (partial build-graph buffer-size @x @x))
-  (let [fa (process-node buffer-size @x @graph)]
-    (swap! x (partial + buffer-size))
-    (swap! db assoc :level (/ (SoundUtil/maxFromBuf fa) 10))
+  (let [{:keys [x graph]} @db/db
+        new-graph (build-graph buffer-size x x graph)
+        fa (process-node buffer-size x new-graph)]
+    ;(vreset! db/master-buf fa)
+    (swap! db/db assoc
+                                        ;:random (rand-int 1000000)
+           
+           :master-buf fa
+           :level (/ (SoundUtil/maxFromBuf fa) 10)
+           :graph new-graph
+           :x (+ x buffer-size))
     (->> (interleave fa fa)
          (map #(int (* 1000 %)))
          (mapcat (partial little-endian 2))
          byte-array)))
 
 (defn play-loop [line buffer player is-playing]
+
   (when buffer
     (send player (fn [sample-position]
                    (.write ^SourceDataLine line buffer 0 (* 4 buffer-size))
                    (+ sample-position buffer-size))))
   (when is-playing
+    ;(swap! db/db assoc :random (rand-int 10))
     (let [new-buffer (build-buffer @player)]
       (await player)
-      (recur line new-buffer player (:playing @db)))))
+      (recur line new-buffer player (:playing @db/db)))))
 
 (defn start-audio []
   (def thread (Thread. #(play-loop
@@ -202,10 +214,10 @@
                            (AudioSystem/getLine (DataLine$Info. SourceDataLine audio-format))
                            .open
                            .start)
-                         nil player (:playing @db))))
+                         nil player (:playing @db/db))))
   (.start thread))
 
-(add-watch db :play-stop
+(add-watch db/db :play-stop
            (fn [k db old-db new-db]
              (when (and (not (:playing old-db))
                       (:playing new-db))
@@ -213,18 +225,18 @@
 
 (comment
  
-  (ui/launch db)
+  (ui/launch db/db)
 
   (def w (WavFile/openWavFile (java.io.File. "resources/Electro-Tom.wav")))
   (def da (double-array (* (.getNumChannels w) (.getNumFrames w))))
   (.readFrames w da (.getNumFrames w))
 
-  (do (swap! db assoc :playing false)
+  (do (swap! db/db assoc :playing false)
       (Thread/sleep 1000)
-      (reset! buffers {})
-      (reset! x 0)
-      (reset! graph (score/out 0))
-      (swap! db assoc :playing true))
+      (swap! db/db assoc
+             :playing true
+             :x 0
+             :graph (score/out 0)))
   )
 
 
