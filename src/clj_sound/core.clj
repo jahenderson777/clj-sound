@@ -173,43 +173,33 @@
         (keyword? node)
         (node @buffers)))
 
-;(def debug-timings (volatile! []))
-;(def anim-sync-diff (volatile! nil))
-;(def buf-count (volatile! 0))
-;(def old-anim-count (volatile! 0))
 (def old-buf-calc-time (volatile! 0))
 
 (defn build-buffer [sample-position]
   (let [now (System/nanoTime)
         diff (/ (- now @old-buf-calc-time) 1000000) ; in ms
-        buf-len (/ buffer-size 48000 0.001) ; in ms
+        buf-len (/ buffer-size 48000 0.001)         ; in ms
         ]
     (when (< diff buf-len)
-      ;(println "sync" (float buf-len) (float diff) (- buf-len diff))
       (Thread/sleep (int (* 2 (- buf-len diff)))))
     (vreset! old-buf-calc-time now))
-  ;(vswap! buf-count inc)
-  #_(while (= @db/anim-count @old-anim-count)
-    (Thread/sleep 1))
-  ;(vreset! old-anim-count @db/anim-count)
-  #_(vswap! debug-timings (fn [v]
-                          (take 100 (concat [(System/nanoTime)] v))))
+
   (reset! buffers {})
   (let [{:keys [x graph]} @db/db
         new-graph (build-graph buffer-size x x graph)
         fa (process-node buffer-size x new-graph)]
-    ;(vreset! db/master-buf fa)
     (swap! db/db assoc
-                                        ;:random (rand-int 1000000)
-           
            :master-buf fa
-           :level (/ (SoundUtil/maxFromBuf fa) 10)
+           :level (if fa
+                    (/ (SoundUtil/maxFromBuf fa) 10)
+                    0)
            :graph new-graph
            :x (+ x buffer-size))
-    (->> (interleave fa fa)
-         (map #(int (* 1000 %)))
-         (mapcat (partial little-endian 2))
-         byte-array)))
+    (when fa
+      (->> (interleave fa fa)
+           (map #(int (* 1000 %)))
+           (mapcat (partial little-endian 2))
+           byte-array))))
 
 (defn play-loop [line buffer player is-playing]
   (when buffer
@@ -217,8 +207,8 @@
                    (.write ^SourceDataLine line buffer 0 (* 4 buffer-size))
                    (+ sample-position buffer-size))))
   (when is-playing
-    ;(swap! db/db assoc :random (rand-int 10))
-    (let [new-buffer (build-buffer @player)]
+                                        ;(swap! db/db assoc :random (rand-int 10))
+    (when-let [new-buffer (build-buffer @player)]
       (await player)
       (recur line new-buffer player (:playing @db/db)))))
 

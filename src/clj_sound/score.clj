@@ -1,5 +1,5 @@
 (ns clj-sound.score
-  (:import Saw Sine)
+  (:import Saw Sine MoogFilter)
   (:require [clojure.string :as str]))
 
 
@@ -48,8 +48,34 @@
    :b1 ['lazy-melody 0]
    :<- :b1})
 
+(defn moog-synth [x freq]
+  [* 4 [MoogFilter
+        [* {0 0.8
+            10000 0.8
+            21000 0}
+         [+ [Saw freq]
+          [Saw (* 3.01 freq)]]]
+        [*
+         1
+         :cutoff
+         {0 600
+                                        ;1000 6111
+          10000 410
+          30000 122}]
+        0.86]])
 
+(defn foo-melody [x n]
+  (lazy-seq
+   (let [x1 (* n 40000)]
+     (concat [x1 ['moog-synth 10]
+              (+ x1 11000) ['moog-synth 12]
+              (+ x1 20000) ['moog-synth 9]
+              (+ x1 31000) ['moog-synth 18]]
+             (foo-melody x (inc n))))))
 
+(defn out [x]
+  {:cutoff [+ 11 [* 10 [Sine 0.02]]]
+   :<- ['foo-melody 0]})
 
 
 
