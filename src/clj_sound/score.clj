@@ -13,8 +13,8 @@
 
 (defn drum [x]
   [Sine {0 700
-            1000 170
-            10000 20}])
+         1000 170
+         10000 20}])
 
 (defn fm-synth [x freq]
   [0 [* {0 1 15000 0.4 40000 0}
@@ -33,7 +33,7 @@
       150000 0.8
       200010 0}
    [+ ['fm-synth freq]
-    ;['drum]
+    ['drum]
     ]])
 
 (defn lazy-melody [x n]

@@ -54,6 +54,28 @@
 (defn construct [class & args]
   (clojure.lang.Reflector/invokeConstructor class (into-array Object args)))
 
+(declare build-graph)
+
+(defn build-graph-seq [n x-buf x node]
+  (let [updated
+        (-> node
+            (update :data
+                    (fn [s]
+                      (let [start-x (:start-x node)
+                            x1 (- x-buf start-x)]
+                        (loop [[t sequenced-node & tail] s
+                               new-sequence '()]
+                          (let [new-sequence2
+                                (cond->> sequenced-node
+                                  (< t (+ x1 n)) (build-graph n x-buf (+ start-x t)) ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
+                                  true (#(concat new-sequence [t %])))]
+                            (if (or (not (seq? tail))
+                                    (>= t (+ x1 n)))
+                              (concat new-sequence2 tail)
+                              (recur tail new-sequence2))))))))]
+    (when (seq (:data updated))
+      updated)))
+
 (defn build-graph [n x-buf x node]
   (cond (or (instance? clojure.lang.LazySeq node) (list? node) (vector? node))
         (cond (int? (first node))
@@ -62,55 +84,24 @@
                                       :data node})
 
               (class? (first node))
-              (concat [(construct (first node) (- x-buf x))] (mapv #(build-graph n x-buf x %)
-                                                                   (rest node)))
-
+              (concat [(construct (first node) (- x-buf x))]
+                      (mapv #(build-graph n x-buf x %) (rest node)))
 
               (or (fn? (first node))
                   (instance? UGen (first node)))
-              (let [inputs (mapv #(build-graph n x-buf x %)
-                                 (rest node))]
-                (cond (and (= + (first node))
-                           (every? nil? inputs))
-                      nil
-
-                      (some nil? inputs)
-                      nil
-
-                      :else
-                      (concat [(first node)] inputs)))
+              (let [inputs (mapv #(build-graph n x-buf x %) (rest node))]
+                (when-not (or (and (not (= + (first node))) (some nil? inputs))
+                              (and (= + (first node)) (every? nil? inputs)))
+                  (concat [(first node)] inputs)))
 
               (symbol? (first node))
               (build-graph n x-buf x (execute x {:fn node :start-x x}))
 
-              :else
-              node)
+              :else node)
 
         (map? node)
         (cond (:seq node)
-              (let [updated
-                    (-> node
-                        (update :data
-                                (fn [s]
-                                  (let [start-x (:start-x node)
-                                        x1 (- x-buf start-x)]
-                                    (loop [[t sequenced-node & tail] s
-                                           new-sequence '()]
-                                        ;(println sequenced-node "start-x=" start-x "x=" x "x1=" x1 "t=" t "(+ x1 n)=" (+ x1 n))
-                                      (let [sequenced-node2 (if (< t (+ x1 n))
-                                                              ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
-                                                              (build-graph n x-buf (+ start-x t) sequenced-node)
-                                                              sequenced-node)
-                                            new-sequence2 (if sequenced-node2
-                                                            (concat new-sequence [t sequenced-node2])
-                                                            new-sequence)] ; don't concat if nil (ended)
-                                        (if (or (not (seq? tail))
-                                                (>= t (+ x1 n)))
-                                          (concat new-sequence2 tail)
-                                          (recur tail new-sequence2))))))))]
-                (if (seq (:data updated))
-                  updated
-                  nil))
+              (build-graph-seq n x-buf x node)
 
               (int? (first (first node)))
               (EnvPlayer. (- x-buf x)
@@ -121,18 +112,15 @@
               (let [buffers (dissoc node :fn :start-x)
                     others (select-keys node [:fn :start-x])
                     processed-buffers (map (partial build-graph n x-buf x) (vals buffers))]
-                (if (some identity processed-buffers)
+                (when (some identity processed-buffers)
                   (merge (zipmap (keys buffers) processed-buffers)
-                         others)
-                  nil)))
+                         others))))
 
         (instance? EnvPlayer node)
-        (if (.-ended node)
-          nil
+        (when-not (.-ended node)
           node)
 
-        :else
-        node))
+        :else node))
 
 (defn add-bufs [& bufs]
   (SoundUtil/sumBuffers (into-array (remove nil? bufs))))
