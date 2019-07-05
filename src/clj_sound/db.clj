@@ -7,3 +7,5 @@
                :master-vol 1.0}))
 
 (def master-buf (volatile! nil))
+
+;(def anim-count (volatile! 0))

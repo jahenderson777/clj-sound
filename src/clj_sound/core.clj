@@ -21,7 +21,7 @@
                 false ; little endian
                 ))
 
-(def buffer-size 1024)
+(def buffer-size 800)
 (def player (agent 0))
 
 (def buffers (atom {}))
@@ -173,10 +173,26 @@
         (keyword? node)
         (node @buffers)))
 
-(def debug-timings (volatile! []))
+;(def debug-timings (volatile! []))
+;(def anim-sync-diff (volatile! nil))
+;(def buf-count (volatile! 0))
+;(def old-anim-count (volatile! 0))
+(def old-buf-calc-time (volatile! 0))
 
 (defn build-buffer [sample-position]
-  (vswap! debug-timings (fn [v]
+  (let [now (System/nanoTime)
+        diff (/ (- now @old-buf-calc-time) 1000000) ; in ms
+        buf-len (/ buffer-size 48000 0.001) ; in ms
+        ]
+    (when (< diff buf-len)
+      ;(println "sync" (float buf-len) (float diff) (- buf-len diff))
+      (Thread/sleep (int (* 2 (- buf-len diff)))))
+    (vreset! old-buf-calc-time now))
+  ;(vswap! buf-count inc)
+  #_(while (= @db/anim-count @old-anim-count)
+    (Thread/sleep 1))
+  ;(vreset! old-anim-count @db/anim-count)
+  #_(vswap! debug-timings (fn [v]
                           (take 100 (concat [(System/nanoTime)] v))))
   (reset! buffers {})
   (let [{:keys [x graph]} @db/db
@@ -196,7 +212,6 @@
          byte-array)))
 
 (defn play-loop [line buffer player is-playing]
-
   (when buffer
     (send player (fn [sample-position]
                    (.write ^SourceDataLine line buffer 0 (* 4 buffer-size))
