@@ -11,16 +11,13 @@ public class MoogFilter implements UGen {
         LP,
         BP
     }
-
     // public float	audio;
-    //public float	frequency; //hz
+    // public float	frequency; // hz
     // public float	resonance; // 0..1
     public Type type; //low pass, high pass, or band pass.
     private float[]	b;	// filter buffers (beware denormals!)
     public int sampleRate;
-    //private float y;
     private int initialX = 0;
-
 
     public MoogFilter(int initialX) {
         type = Type.LP;
@@ -35,7 +32,6 @@ public class MoogFilter implements UGen {
         float[] resonance = inputs[2];
         // Set coefficients given frequency & resonance [0.0...1.0]
         float t1, t2, normFreq, rez, q, p, f, in; // temporary buffers
-        //y1 = y;
 
         for (int i = - this.initialX; i<count; i++) {
             normFreq = frequency[i] / (sampleRate * 0.5f);

@@ -3,6 +3,22 @@
   (:require [clojure.string :as str]))
 
 
+(defn make-sampler [filename]
+  (let [w (WavFile/openWavFile (java.io.File. filename))
+        n (.getNumFrames w)
+        ya (double-array (* (.getNumChannels w) n))
+        xa (double-array n)
+        _ (.readFrames w ya n)
+        w (.close w)
+        _ (doseq [i (range n)]
+            (aset-double xa i i))]
+    (CubicSplineFast. xa ya)))
+
+(def bd (make-sampler "resources/909/tape1/bd01.wav"))
+(def ch (make-sampler "resources/909/tape1/cr01.wav"))
+(def oh (make-sampler "resources/909/tape1/oh01.wav"))
+(def cp (make-sampler "resources/909/tape1/cp01.wav"))
+
 (defn a-synth [x freq]
   [* {0 1 50 0}
    [Saw freq]])
@@ -77,7 +93,19 @@
   {:cutoff [+ 11 [* 10 [Sine 0.02]]]
    :<- ['foo-melody 0]})
 
+(defn techno-loop [x n]
+  (lazy-seq
+   (let [x1 (* n 20000)]
+     (concat [x1 [bd 1]
+              (+ x1 5000) [ch 2]
+              (+ x1 10000) [oh 1]
+              (+ x1 10000) [ch 2]
+              (+ x1 15000) [ch 2]]
+             (techno-loop x (inc n))))))
 
+(defn out [x]
+  [0 ['techno-loop 0]
+   ])
 
 ;; so process has to handle:
 ;; maps, process buffers in order

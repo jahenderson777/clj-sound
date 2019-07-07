@@ -6,7 +6,7 @@
             [clojure.data.int-map :as i]
             [clojure.data.avl :as avl])
   (:import (javax.sound.sampled Mixer Mixer$Info AudioSystem DataLine$Info SourceDataLine AudioFormat AudioFormat$Encoding)
-           SimpleOsc WavFile UGen SoundUtil CubicSplineFast Player EnvPlayer)
+           SimpleOsc WavFile UGen SoundUtil CubicSplineFast Player EnvPlayer Sampler)
   (:gen-class))
 
 (set! *unchecked-math* true)
@@ -82,16 +82,23 @@
                                       :start-x x
                                       :data node})
 
+              (instance? CubicSplineFast (first node))
+              (concat [(Sampler. (- x-buf x) (first node))]
+                      (mapv #(build-graph n x-buf x %) (rest node)))
+
               (class? (first node))
               (concat [(construct (first node) (- x-buf x))]
                       (mapv #(build-graph n x-buf x %) (rest node)))
 
               (or (fn? (first node))
                   (instance? UGen (first node)))
-              (let [inputs (mapv #(build-graph n x-buf x %) (rest node))]
-                (when-not (or (and (not (= + (first node))) (some nil? inputs))
-                              (and (= + (first node)) (every? nil? inputs)))
-                  (concat [(first node)] inputs)))
+              (if (and (instance? Sampler (first node))
+                       (.-ended (first node)))
+                nil
+                (let [inputs (mapv #(build-graph n x-buf x %) (rest node))]
+                  (when-not (or (and (not (= + (first node))) (some nil? inputs))
+                                (and (= + (first node)) (every? nil? inputs)))
+                    (concat [(first node)] inputs))))
 
               (symbol? (first node))
               (build-graph n x-buf x (execute x {:fn node :start-x x}))
@@ -228,11 +235,15 @@
                       (:playing new-db))
                (start-audio))))
 
+
+
 (comment
  
   (ui/launch db/db)
 
-  (def w (WavFile/openWavFile (java.io.File. "resources/Electro-Tom.wav")))
+  (make-sampler "resources/909/tape1/bd01.wav")
+
+  (def w (WavFile/openWavFile (java.io.File. "resources/909/tape1/bd01.wav")))
   (def da (double-array (* (.getNumChannels w) (.getNumFrames w))))
   (.readFrames w da (.getNumFrames w))
 
