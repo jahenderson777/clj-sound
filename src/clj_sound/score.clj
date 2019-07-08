@@ -96,23 +96,29 @@
 
 (defn techno-loop [x n]
   (lazy-seq
-   (let [x1 (* n 20000)]
-     (concat [x1 [* 5 [bd 1]]
-              (+ x1 5000) [ch 4]
-              (+ x1 10000) [* 2 [oh 1]]
-              (+ x1 10000) [ch 4]
-              (+ x1 15000) [ch 4.2]]
+   (let [x1 (* n 0x100)]
+     (concat [x1 [bd 1]
+              (+ x1 0x40) [ch 0.2]
+              (+ x1 0x80) [oh 1]
+              (+ x1 0x80) [ch 4]
+              (+ x1 0xc0) [ch 1.2]]
              (techno-loop x (inc n))))))
 
-(defn out [x]
-  [0 ['techno-loop 0]
-   ])
 
 (defn out [x]
-  [* {0 0.1
-      100000 1
-      300000 0}
-   [Sine 1000]])
+  ['techno-loop 0])
+
+
+
+(defn foo-loop [x]
+  [0x00 [bd 1]
+   0x40 [ch 4]
+   0x80 [oh 1]
+   0xc0 [ch 6]
+   0x100])
+
+(defn out [x]
+  ['foo-loop])
 
 ;; 8r025 = 1/3 beat (21.33)
 ;; 8r053 = 2/3 beat (42.66)
