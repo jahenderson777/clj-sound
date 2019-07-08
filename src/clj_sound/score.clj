@@ -1,6 +1,5 @@
 (ns clj-sound.score
-  (:import Saw Sine MoogFilter)
-  (:require [clojure.string :as str]))
+  (:import Saw Sine MoogFilter WavFile))
 
 
 (defn make-sampler [filename]
@@ -66,7 +65,8 @@
 
 (defn moog-synth [x freq]
   [* 4 [MoogFilter
-        [* {0 0.8
+        [*  0.8
+         {0 0.8
             10000 0.8
             21000 0}
          [+ [Saw freq]
@@ -91,21 +91,47 @@
 
 (defn out [x]
   {:cutoff [+ 11 [* 10 [Sine 0.02]]]
-   :<- ['foo-melody 0]})
+   :<- [+ ['techno-loop 0]
+          ['foo-melody 0]]})
 
 (defn techno-loop [x n]
   (lazy-seq
    (let [x1 (* n 20000)]
-     (concat [x1 [bd 1]
-              (+ x1 5000) [ch 2]
-              (+ x1 10000) [oh 1]
-              (+ x1 10000) [ch 2]
-              (+ x1 15000) [ch 2]]
+     (concat [x1 [* 5 [bd 1]]
+              (+ x1 5000) [ch 4]
+              (+ x1 10000) [* 2 [oh 1]]
+              (+ x1 10000) [ch 4]
+              (+ x1 15000) [ch 4.2]]
              (techno-loop x (inc n))))))
 
 (defn out [x]
   [0 ['techno-loop 0]
    ])
+
+(defn out [x]
+  [* {0 0.1
+      100000 1
+      300000 0}
+   [Sine 1000]])
+
+;; 8r025 = 1/3 beat (21.33)
+;; 8r053 = 2/3 beat (42.66)
+;; 8r100 = 1 beat (64)
+;; 8r1000 = 1 bar (8 beats)
+;; 8r10000 = 8 bars (64 beats)
+;; 8r001 = 1/64 beat, 375 samples at 120bpm
+;; 375 = (/ sample-rate (/ bpm 60) 64)
+
+;; 0x53 = 1/3 beat (83.33)
+;; 0xab = 2/3 beat (170.6)
+;; 0x100 = 1 beat (256)
+;; 0x800 = 1 bar (8 beats) (2048)
+;; 8r10000 = 8 bars (64 beats)
+;; 8r001 = 1/64 beat, 375 samples at 120bpm
+;; 93.75 = (/ sample-rate (/ bpm 60) 256)
+
+
+
 
 ;; so process has to handle:
 ;; maps, process buffers in order

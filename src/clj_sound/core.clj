@@ -188,7 +188,7 @@
         buf-len (/ buffer-size 48000 0.001)         ; in ms
         ]
     (when (< diff buf-len)
-      (Thread/sleep (int (* 2 (- buf-len diff)))))
+      (Thread/sleep (int (* 1.8 (- buf-len diff)))))
     (vreset! old-buf-calc-time now))
 
   (reset! buffers {})
