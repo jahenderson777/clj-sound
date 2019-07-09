@@ -108,17 +108,18 @@
 (defn out [x]
   ['techno-loop 0])
 
-
+(defn bass-drum [x]
+  [* 2 [bd 1]])
 
 (defn foo-loop [x]
-  [0x00 [bd 1]
-   0x40 [ch 4]
+  [0x00 [bass-drum]
+   0x40 [ch 0.2]
    0x80 [oh 1]
    0xc0 [ch 6]
    0x100])
 
 (defn out [x]
-  ['foo-loop])
+  [foo-loop])
 
 ;; 8r025 = 1/3 beat (21.33)
 ;; 8r053 = 2/3 beat (42.66)

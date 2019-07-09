@@ -4,7 +4,8 @@
             [clj-sound.score :as score]
             [clj-sound.db :as db]
             [clojure.data.int-map :as i]
-            [clojure.data.avl :as avl])
+            [clojure.data.avl :as avl]
+            [clojure.string :as str])
   (:import (javax.sound.sampled Mixer Mixer$Info AudioSystem DataLine$Info SourceDataLine AudioFormat AudioFormat$Encoding)
            SimpleOsc WavFile UGen SoundUtil CubicSplineFast Player EnvPlayer Sampler)
   (:gen-class))
@@ -29,6 +30,7 @@
 (def samples-per-tick (/ sample-rate (/ bpm 60) 256))
 
 (def buffers (atom {}))
+(def var-map (atom {}))
 
 (def perf (atom {}))
 (defn perf-watch [k f]
@@ -52,7 +54,17 @@
        (range size)))
 
 (defn execute [x {:keys [fn start-x]}]
-  (let [ret (apply (ns-resolve 'clj-sound.score (first fn)) x (rest fn))]
+  (let [fn-s (.toString (first fn))
+        _ (swap! var-map update fn-s #(when (nil? %) fn-s))
+        [ns fn-name] (str/split fn-s #"[$]")
+        symbolize #(symbol (str/replace % #"_" "-"))
+        cur-fn (ns-resolve (symbolize ns) (symbolize (first (str/split fn-name #"@"))))
+        ;_
+        #_(when-not (= fn-s (.toString (var-get cur-fn)))
+            (swap! var-map assoc fn-s #())
+            (println "function recompile detected: " fn-s cur-fn)
+            )
+        ret (apply cur-fn x (rest fn))]
     (-> (if (map? ret)
           ret
           {:<- ret})
@@ -121,17 +133,17 @@
               (concat [(construct (first node) (- x-buf x))]
                       (mapv #(build-graph n x-buf x %) (rest node)))
 
-              (or (fn? (first node))
+              (or (#{* +} (first node))
                   (instance? UGen (first node)))
               (if (and (instance? Sampler (first node))
                        (.-ended (first node)))
                 nil
                 (let [inputs (mapv #(build-graph n x-buf x %) (rest node))]
-                  (when-not (or (and (not (= + (first node))) (some nil? inputs))
+                  (when-not (or (and (= * (first node)) (some nil? inputs))
                                 (and (= + (first node)) (every? nil? inputs)))
                     (concat [(first node)] inputs))))
 
-              (symbol? (first node))
+              (fn? (first node))
               (build-graph n x-buf x (execute x {:fn node :start-x x}))
 
               :else node)
