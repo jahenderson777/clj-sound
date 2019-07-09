@@ -17,6 +17,7 @@
 (def ch (make-sampler "resources/909/tape1/cr01.wav"))
 (def oh (make-sampler "resources/909/tape1/oh01.wav"))
 (def cp (make-sampler "resources/909/tape1/cp01.wav"))
+(def lt (make-sampler "resources/909/tape1/lt01.wav"))
 
 (defn a-synth [x freq]
   [* {0 1 50 0}
@@ -67,18 +68,18 @@
   [* 4 [MoogFilter
         [*  0.8
          {0 0.8
-            4000 0.8
-            11000 0}
+          4000 0.8
+          11000 0}
          [+ [Saw freq]
-          [Saw (* 3.01 freq)]]]
+          [Saw (* 2.03 freq)]]]
         [*
-         (+ 1 (rand-int 3))
-         ;:cutoff
+         (+ 1 (/ (rand-int 3) 4))
+                                        ;:cutoff
          {0 800
                                         ;1000 6111
           10000 110
           20000 122}]
-        0.86]])
+        0.76]])
 
 (defn foo-melody [x n]
   (lazy-seq
@@ -115,19 +116,17 @@
 
 (defn foo-loop [x]
   [0x00 [bass-drum]
-   0x40 [* 0.8 [ch 0.2]]
-   0x45 [ch 6.1]
-   0x80 [moog-synth 28]
-   0x80 [oh 1]
+   0x40 [* 0.8 [ch 0.2]] 0x45 [ch 6.1]
+   0x80 [moog-synth 28]  0x80 [oh 1]
    0xc7 [ch 6]
    0xd9 [moog-synth 18]
-   ;0xda [ch 6]
-   ])
+   0xf0 [oh 0.2]])
 
 (defn out [x]
   [0x000 [foo-loop]
    0x100 [foo-loop]
    0x100 [cp 1]
+   0x1c0 [lt 1]
    0x200])
 
 ;; 8r025 = 1/3 beat (21.33)
