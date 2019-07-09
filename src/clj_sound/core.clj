@@ -139,7 +139,7 @@
                        (.-ended (first node)))
                 nil
                 (let [inputs (mapv #(build-graph n x-buf x %) (rest node))]
-                  (when-not (or (and (= * (first node)) (some nil? inputs))
+                  (when-not (or (and (not (= + (first node))) (some nil? inputs))
                                 (and (= + (first node)) (every? nil? inputs)))
                     (concat [(first node)] inputs))))
 
@@ -193,7 +193,7 @@
                       (>= t (+ x1 n)))
                 (if (seq bufs-to-sum)
                   (apply add-bufs bufs-to-sum)
-                  nil)
+                  (float-array n))
                 (recur tail bufs-to-sum)))))
 
         (map? node)

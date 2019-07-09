@@ -67,17 +67,17 @@
   [* 4 [MoogFilter
         [*  0.8
          {0 0.8
-            10000 0.8
-            21000 0}
+            4000 0.8
+            11000 0}
          [+ [Saw freq]
           [Saw (* 3.01 freq)]]]
         [*
-         1
-         :cutoff
-         {0 600
+         (+ 1 (rand-int 3))
+         ;:cutoff
+         {0 800
                                         ;1000 6111
-          10000 410
-          30000 122}]
+          10000 110
+          20000 122}]
         0.86]])
 
 (defn foo-melody [x n]
@@ -109,17 +109,26 @@
   ['techno-loop 0])
 
 (defn bass-drum [x]
-  [* 2 [bd 1]])
+  [* 4.4 [bd 1]])
+
+#_(def bass-drum #'bass-drum*)
 
 (defn foo-loop [x]
   [0x00 [bass-drum]
-   0x40 [ch 0.2]
+   0x40 [* 0.8 [ch 0.2]]
+   0x45 [ch 6.1]
+   0x80 [moog-synth 28]
    0x80 [oh 1]
-   0xc0 [ch 6]
-   0x100])
+   0xc7 [ch 6]
+   0xd9 [moog-synth 18]
+   ;0xda [ch 6]
+   ])
 
 (defn out [x]
-  [foo-loop])
+  [0x000 [foo-loop]
+   0x100 [foo-loop]
+   0x100 [cp 1]
+   0x200])
 
 ;; 8r025 = 1/3 beat (21.33)
 ;; 8r053 = 2/3 beat (42.66)
