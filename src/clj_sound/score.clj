@@ -1,5 +1,7 @@
 (ns clj-sound.score
-  (:import Saw Sine MoogFilter WavFile))
+  (:import Saw Sine MoogFilter WavFile)
+  (:require [clj-sound.util :refer [defn*]]
+            [clojure.string :as str]))
 
 
 (defn make-sampler [filename]
@@ -64,7 +66,7 @@
    :b1 ['lazy-melody 0]
    :<- :b1})
 
-(defn moog-synth [x freq]
+(defn* moog-synth [x freq]
   [* 4 [MoogFilter
         [*  0.8
          {0 0.8
@@ -81,21 +83,21 @@
           20000 122}]
         0.76]])
 
-(defn foo-melody [x n]
+(defn* foo-melody [x n]
   (lazy-seq
    (let [x1 (* n 40000)]
      (concat [x1 ['moog-synth 10]
               (+ x1 11000) ['moog-synth 12]
               (+ x1 20000) ['moog-synth 9]
               (+ x1 31000) ['moog-synth 18]]
-             (foo-melody x (inc n))))))
+             (foo-melody* x (inc n))))))
 
-(defn out [x]
+(defn* out [x]
   {:cutoff [+ 11 [* 10 [Sine 0.02]]]
    :<- [+ ['techno-loop 0]
           ['foo-melody 0]]})
 
-(defn techno-loop [x n]
+(defn* techno-loop [x n]
   (lazy-seq
    (let [x1 (* n 0x100)]
      (concat [x1 [bd 1]
@@ -103,28 +105,31 @@
               (+ x1 0x80) [oh 1]
               (+ x1 0x80) [ch 4]
               (+ x1 0xc0) [ch 1.2]]
-             (techno-loop x (inc n))))))
+             (techno-loop* x (inc n))))))
 
 
-(defn out [x]
+(defn* out [x]
   ['techno-loop 0])
 
-(defn bass-drum [x]
+(defn* bass-drum [x]
   [* 4.4 [bd 1]])
 
 #_(def bass-drum #'bass-drum*)
 
-(defn foo-loop [x]
+
+
+(defn* foo-loop [x]
   [0x00 [bass-drum]
    0x40 [* 0.8 [ch 0.2]] 0x45 [ch 6.1]
    0x80 [moog-synth 28]  0x80 [oh 1]
    0xc7 [ch 6]
    0xd9 [moog-synth 18]
-   0xf0 [oh 0.2]])
+   0xf0 [oh 0.2]
+   ])
 
-(defn out [x]
-  [0x000 [foo-loop]
-   0x100 [foo-loop]
+(defn* out [x]
+  [;0x000 [foo-loop]
+   ;0x100 [foo-loop]
    0x100 [cp 1]
    0x1c0 [lt 1]
    0x200])

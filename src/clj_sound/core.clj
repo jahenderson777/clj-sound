@@ -53,22 +53,22 @@
             unsigned-byte)
        (range size)))
 
-(defn execute [x {:keys [fn start-x]}]
-  (let [fn-s (.toString (first fn))
-        _ (swap! var-map update fn-s #(when (nil? %) fn-s))
+#_(defn latest-fn [f]
+  (let [fn-s (.toString f)
         [ns fn-name] (str/split fn-s #"[$]")
-        symbolize #(symbol (str/replace % #"_" "-"))
-        cur-fn (ns-resolve (symbolize ns) (symbolize (first (str/split fn-name #"@"))))
-        ;_
-        #_(when-not (= fn-s (.toString (var-get cur-fn)))
-            (swap! var-map assoc fn-s #())
-            (println "function recompile detected: " fn-s cur-fn)
-            )
-        ret (apply cur-fn x (rest fn))]
+        symbolize #(symbol (str/replace % #"_" "-"))]
+    (ns-resolve (symbolize ns) (symbolize (first (str/split fn-name #"@"))))))
+
+(defn actual-fn [fn-v]
+  (let [m (meta fn-v)]
+    (var-get (ns-resolve (:ns m) (:name m)))))
+
+(defn execute [x {:keys [fn start-x]}]
+  (let [ret (apply (first fn) x (rest fn))]
     (-> (if (map? ret)
           ret
           {:<- ret})
-        (assoc :fn fn :start-x start-x))))
+        (assoc :actual-fn (actual-fn (first fn)) :fn fn :start-x start-x))))
 
 (defn ordered-buses [m]
   (into (sorted-map) (dissoc m :<- :fn :start-x)))
@@ -143,7 +143,7 @@
                                 (and (= + (first node)) (every? nil? inputs)))
                     (concat [(first node)] inputs))))
 
-              (fn? (first node))
+              (var? (first node))
               (build-graph n x-buf x (execute x {:fn node :start-x x}))
 
               :else node)
@@ -158,12 +158,21 @@
                           (double-array (vals node)))
 
               :else
-              (let [buffers (dissoc node :fn :start-x)
-                    others (select-keys node [:fn :start-x])
-                    processed-buffers (map (partial build-graph n x-buf x) (vals buffers))]
-                (when (some identity processed-buffers)
-                  (merge (zipmap (keys buffers) processed-buffers)
-                         others))))
+              (let [buffers (dissoc node :fn :start-x :actual-fn)
+                    others (select-keys node [:fn :start-x :actual-fn])
+                    actual (:actual-fn others)
+                    old-fn (:fn others)
+                    actual (let [new-actual (actual-fn (first old-fn))]
+                             (if (not= actual new-actual)
+                               (do (println "recomple detected" actual (actual-fn (first old-fn)))
+                                   new-actual)
+                               actual))]
+                
+                (let [processed-buffers (map (partial build-graph n x-buf x) (vals buffers))]
+                  (when (some identity processed-buffers)
+                    (merge (zipmap (keys buffers) processed-buffers)
+                           others
+                           {:actual-fn actual})))))
 
         (instance? EnvPlayer node)
         (when-not (.-ended node)
@@ -297,7 +306,7 @@
       (swap! db/db assoc
              :playing true
              :x 0
-             :graph (score/out 0)))
+             :graph [score/out]))
   )
 
 
