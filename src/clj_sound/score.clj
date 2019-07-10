@@ -129,10 +129,53 @@
 
 (defn* out [x]
   [;0x000 [foo-loop]
-   ;0x100 [foo-loop]
+                                        ;0x100 [foo-loop]
+   0x000 [bd 1.2]
    0x100 [cp 1]
    0x1c0 [lt 1]
-   0x200])
+   0x200 [cp 1]
+   0x300 [cp 11]
+   0x400 [cp 21]
+   0x500 [cp 11]
+   0x600 [cp 1]
+   0x800 [cp 1]])
+
+(defn* out [x]
+  [0x000 [cp 1]
+   0x100 [cp 1]
+   0x200 [cp 1]
+   0x300 [cp 1]
+   0x400 [cp 1]
+   0x500 [cp 1]
+   0x600 [cp 1]
+   0x700 [cp 1]
+   0x800 [cp 1]
+   0x900 [cp 1]
+   0xa00 [cp 1]
+   0xb00 [cp 1]
+   0xc00 [cp 1]
+   0xd00 [cp 1]
+   0xe00 [cp 1]
+   0xf00 [cp 1]])
+
+(defn* out [x]
+  [0x000 [lt 1]
+   0x100 [lt 1]
+   0x200 [lt 1]
+   0x300 [lt 1]
+   0x400 [lt 1]
+   0x500 [lt 1]
+   0x600 [lt 1]
+   0x700 [lt 1]
+   0x800 [lt 1]
+   0x900 [lt 1]
+   0xa00 [lt 1]
+   0xb00 [lt 1]
+   0xc00 [lt 1]
+   0xd00 [lt 1]
+   0xe00 [lt 1]
+   0xf00 [lt 1]])
+
 
 ;; 8r025 = 1/3 beat (21.33)
 ;; 8r053 = 2/3 beat (42.66)

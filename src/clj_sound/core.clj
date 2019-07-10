@@ -79,7 +79,7 @@
 (declare build-graph)
 
 (defn build-graph-seq [n x-buf x node]
-  ;(println node)
+                                        ;(println node)
   (let [updated
         (-> node
             (update
@@ -92,9 +92,13 @@
                    (let [t (long (* t* samples-per-tick))
                          new-sequence2
                          (as-> sequenced-node $
-                           (if (< t (+ x1 n))
-                             (build-graph n x-buf (+ start-x t) $) ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
-                             $)
+                           (cond 
+
+                                 (< t (+ x1 n))
+                                 (build-graph n x-buf (+ start-x t) $) ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
+
+                                 :else
+                                 $)
                            (if $
                              (concat new-sequence [t* $])
                              $))]
@@ -114,6 +118,18 @@
                  new-sequence2
                  (recur tail new-sequence2))))
            (repeating s (+ n (last s))))))
+
+(comment ;remove old
+  (loop [[t* sequenced-node & tail] [0x000 11 0x100 12 0x200 13]
+         new-sequence []]
+    (let [new-sequence2
+          (if (< t* 0x012)
+            new-sequence
+            (conj new-sequence t* sequenced-node))]
+      (if (> t* 0x12)
+        (concat new-sequence2 tail)
+        (recur tail new-sequence2))))
+  )
 
 (defn build-graph [n x-buf x node]
   (cond (or (instance? clojure.lang.LazySeq node) (list? node) (vector? node))
@@ -162,17 +178,15 @@
                     others (select-keys node [:fn :start-x :actual-fn])
                     actual (:actual-fn others)
                     old-fn (:fn others)
-                    actual (let [new-actual (actual-fn (first old-fn))]
-                             (if (not= actual new-actual)
-                               (do (println "recomple detected" actual (actual-fn (first old-fn)))
-                                   new-actual)
-                               actual))]
-                
-                (let [processed-buffers (map (partial build-graph n x-buf x) (vals buffers))]
-                  (when (some identity processed-buffers)
-                    (merge (zipmap (keys buffers) processed-buffers)
-                           others
-                           {:actual-fn actual})))))
+                    new-actual (actual-fn (first old-fn))]
+                (if (not= actual new-actual)
+                  (do (println x-buf x (:start-x node))
+                    (build-graph n x-buf (:start-x node) (execute (:start-x node) {:fn old-fn :start-x (:start-x node)})))
+
+                  (let [processed-buffers (map (partial build-graph n x-buf x) (vals buffers))]
+                    (when (some identity processed-buffers)
+                      (merge (zipmap (keys buffers) processed-buffers)
+                             others))))))
 
         (instance? EnvPlayer node)
         (when-not (.-ended node)
