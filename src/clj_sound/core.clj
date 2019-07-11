@@ -79,7 +79,7 @@
 (declare build-graph)
 
 (defn build-graph-seq [n x-buf x node]
-                                        ;(println node)
+                            ;            (println x-buf x node)
   (let [updated
         (-> node
             (update
@@ -89,35 +89,35 @@
                      x1 (- x-buf start-x)]
                  (loop [[t* sequenced-node & tail] s
                         new-sequence '()]
-                   (let [t (long (* t* samples-per-tick))
-                         new-sequence2
-                         (as-> sequenced-node $
-                           (cond 
+                   (if (nil? t*)
+                     new-sequence
+                     (let [t (long (* t* samples-per-tick))
+                           new-sequence2
+                           (as-> sequenced-node $
+                             (cond (< t (+ x1 n))
+                                   (build-graph n x-buf (+ start-x t) $) ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
 
-                                 (< t (+ x1 n))
-                                 (build-graph n x-buf (+ start-x t) $) ;; TODO can't understand why (+ start-x t) doesn't cause a problem,
-
-                                 :else
-                                 $)
-                           (if $
-                             (concat new-sequence [t* $])
-                             $))]
-                     (if (or (not (seq? tail))
-                             (>= t (+ x1 n)))
-                       (concat new-sequence2 tail)
-                       (recur tail new-sequence2))))))))]
+                                   :else
+                                   $)
+                             (if $
+                               (concat new-sequence [t* $])
+                               $))]
+                       (if (or (not (seq? tail))
+                               (>= t (+ x1 n)))
+                         (concat new-sequence2 tail)
+                         (recur tail new-sequence2)))))))))]
     (when (seq (:data updated))
       updated)))
 
-(defn repeating [s n]
+(defn repeating [s offset n]
   (lazy-seq
    (concat (loop [[t node & tail] s
                   new-sequence []]
-             (let [new-sequence2 (conj new-sequence (+ t n) node)]
+             (let [new-sequence2 (conj new-sequence (+ t n offset) node)]
                (if (= 1 (count tail))
                  new-sequence2
                  (recur tail new-sequence2))))
-           (repeating s (+ n (last s))))))
+           (repeating s offset (+ n (last s))))))
 
 (defn remove-past-from-sequence [s x]
   (doto (loop [[t* sequenced-node & tail] s
@@ -128,29 +128,35 @@
                   new-sequence
                   (conj new-sequence t* sequenced-node))]
             (if (or (not (seq? tail))
-                    (> t x))
+                    (>= t x))
               (concat new-sequence2 tail)
               (recur tail new-sequence2))))
-    (#(println "removed past " x %))))
+   ; (#(println x s %))
+    ))
 
-(defn build-graph [n x-buf x node]
+(defn build-graph
+  "x-buf is the sample position of the start of the buffer.
+   x is the sample position that this node starts at, because a node might be sequenced to start
+   partway through a buffer. It only really comes into play when constructing UGens."
+  [n x-buf x node]
   (cond (or (instance? clojure.lang.LazySeq node) (list? node) (vector? node))
         (cond (int? (first node))
-              (do (println "build-graph" n x-buf x node)
-                (build-graph n x-buf x {:seq :polyphonic
-                                        :start-x 0 ; TODO this is probably wrong in some cases
-                                        :data (if (and (not (instance? clojure.lang.LazySeq node))
-                                                       (odd? (count node)))
-                                                (repeating node 0)
-                                                (remove-past-from-sequence node x))}))
+              (build-graph n x-buf x {:seq :polyphonic
+                                      :start-x x ; TODO not 100% sure about this
+                                      :data (if (and (not (instance? clojure.lang.LazySeq node))
+                                                     (odd? (count node)))
+                                              (repeating node (long (* (last node) (int (/ (/ (- x-buf x) samples-per-tick) (last node))))) 0)
+                                              (remove-past-from-sequence node (- x-buf x)))})
 
               (instance? CubicSplineFast (first node))
-              (concat [(Sampler. (- x-buf x) (first node))]
-                      (mapv #(build-graph n x-buf x %) (rest node)))
+              (when (>= x x-buf)
+                (concat [(Sampler. (- x-buf x) (first node))]
+                        (mapv #(build-graph n x-buf x %) (rest node))))
 
               (class? (first node))
-              (concat [(construct (first node) (- x-buf x))]
-                      (mapv #(build-graph n x-buf x %) (rest node)))
+              (when (>= x x-buf)
+                (concat [(construct (first node) (- x-buf x))]
+                        (mapv #(build-graph n x-buf x %) (rest node))))
 
               (or (#{* +} (first node))
                   (instance? UGen (first node)))
@@ -158,8 +164,9 @@
                        (.-ended (first node)))
                 nil
                 (let [inputs (mapv #(build-graph n x-buf x %) (rest node))]
-                  (when-not (or (and (not (= + (first node))) (some nil? inputs))
-                                (and (= + (first node)) (every? nil? inputs)))
+                  (if (or (and (not (= + (first node))) (some nil? inputs))
+                          (and (= + (first node)) (every? nil? inputs)))
+                    nil
                     (concat [(first node)] inputs))))
 
               (var? (first node))
@@ -183,8 +190,7 @@
                     old-fn (:fn others)
                     new-actual (actual-fn (first old-fn))]
                 (if (not= actual new-actual)
-                  (do (println x-buf x (:start-x node))
-                    (build-graph n x-buf x (execute (:start-x node) {:fn old-fn :start-x (:start-x node)})))
+                  (build-graph n x-buf (:start-x node) (execute (:start-x node) {:fn old-fn :start-x (:start-x node)}))
 
                   (let [processed-buffers (map (partial build-graph n x-buf x) (vals buffers))]
                     (when (some identity processed-buffers)

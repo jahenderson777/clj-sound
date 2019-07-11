@@ -71,15 +71,15 @@
         [*  0.8
          {0 0.8
           4000 0.8
-          11000 0}
+          15000 0}
          [+ [Saw freq]
-          [Saw (* 2.03 freq)]]]
+          [Saw (* 2.05 freq)]]]
         [*
-         (+ 1 (/ (rand-int 3) 4))
+         (+ 1.5 (/ (rand-int 3) 7))
                                         ;:cutoff
          {0 800
                                         ;1000 6111
-          10000 110
+          10000 210
           20000 122}]
         0.76]])
 
@@ -112,20 +112,71 @@
   ['techno-loop 0])
 
 (defn* bass-drum [x]
-  [* 4.4 [bd 1]])
+  [* 4.4 [bd 1]
+   ])
 
 #_(def bass-drum #'bass-drum*)
 
+(defn* s1 [x f]
+  [0x000 [moog-synth f]
+   ;0x020 [moog-synth f]
+   0x040 [moog-synth (* f 2)]
+   ;0x060 [moog-synth (* f 3)]
+   0x080 [moog-synth (* f 3)]
+   ;0x0a0 [moog-synth (* f 2)]
+   0x0c0 [moog-synth (* f 7)] 0x0c0 [moog-synth (* f 12)]
+   ])
 
-
-(defn* foo-loop [x]
+(defn* out [x]
   [0x00 [bass-drum]
+   0x00 [s1 11]
    0x40 [* 0.8 [ch 0.2]] 0x45 [ch 6.1]
    0x80 [moog-synth 28]  0x80 [oh 1]
    0xc7 [ch 6]
    0xd9 [moog-synth 18]
    0xf0 [oh 0.2]
+   0x100]
+
+  )
+
+
+(defn* out [x]
+  [MoogFilter [0x00 [bass-drum]
+               0x40 [* 0.8 [ch 0.2]] 0x45 [ch 6.1]
+               0x80 [moog-synth 28]  0x80 [oh 1]
+               0xc7 [ch 6]
+               0xd9 [moog-synth 18]
+               0xf0 [oh 0.2]
+               0x100]
+   700
+   0.7
    ])
+
+(defn* out [x]
+  [MoogFilter [0x00 [bd 1]
+               0x100]
+   600
+   0.9])
+
+(defn* a [x]
+  [0x000 [MoogFilter [ch 0.2]
+          (+ (rand-int 100) 600) 0.6]
+   0x060 [ch 6]
+   0x170 [MoogFilter [lt 2.2]
+          300 0.4]])
+
+
+
+(defn* out [x]
+  [0x000 [bass-drum] 0x000 [s1 12]
+   0x020 [a]
+   0x080 [moog-synth 12]
+   0x080 [* 3 [Saw 2] [ch 2]]
+   0x100 [bass-drum] 0x100 [cp 1] 0x100 [s1 8]
+   0x120 [a]
+   0x180 [* 3 [Saw 2] [ch 2]]
+   0x1c0 [moog-synth 10]
+   0x200])
 
 (defn* out [x]
   [;0x000 [foo-loop]
@@ -141,22 +192,28 @@
    0x800 [cp 1]])
 
 (defn* out [x]
-  [0x000 [cp 1]
-   0x100 [cp 1]
+  [0x000 [bd 1]
+   0x100 [oh 1]
    0x200 [cp 1]
-   0x300 [cp 1]
+   0x300 [oh 1]
    0x400 [cp 1]
-   0x500 [cp 1]
+   0x500 [oh 1]
    0x600 [cp 1]
-   0x700 [cp 1]
-   0x800 [cp 1]
-   0x900 [cp 1]
-   0xa00 [cp 1]
-   0xb00 [cp 1]
-   0xc00 [cp 1]
-   0xd00 [cp 1]
-   0xe00 [cp 1]
-   0xf00 [cp 1]])
+   0x700 [oh 1]
+   0x800
+   ])
+
+(defn* out [x]
+  [0x000 [bd 1]
+   0x100 [ch 1]
+   0x200 [cp 1]
+   0x300 [ch 1]
+   0x400 [cp 1]
+   0x500 [ch 1]
+   0x600 [cp 1]
+   0x700 [ch 1]
+   0x800
+   ])
 
 (defn* out [x]
   [0x000 [lt 1]
