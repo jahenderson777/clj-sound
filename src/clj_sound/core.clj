@@ -119,27 +119,30 @@
                  (recur tail new-sequence2))))
            (repeating s (+ n (last s))))))
 
-(comment ;remove old
-  (loop [[t* sequenced-node & tail] [0x000 11 0x100 12 0x200 13]
-         new-sequence []]
-    (let [new-sequence2
-          (if (< t* 0x012)
-            new-sequence
-            (conj new-sequence t* sequenced-node))]
-      (if (> t* 0x12)
-        (concat new-sequence2 tail)
-        (recur tail new-sequence2))))
-  )
+(defn remove-past-from-sequence [s x]
+  (doto (loop [[t* sequenced-node & tail] s
+               new-sequence []]
+          (let [t (long (* t* samples-per-tick))
+                new-sequence2
+                (if (< t x)
+                  new-sequence
+                  (conj new-sequence t* sequenced-node))]
+            (if (or (not (seq? tail))
+                    (> t x))
+              (concat new-sequence2 tail)
+              (recur tail new-sequence2))))
+    (#(println "removed past " x %))))
 
 (defn build-graph [n x-buf x node]
   (cond (or (instance? clojure.lang.LazySeq node) (list? node) (vector? node))
         (cond (int? (first node))
-              (build-graph n x-buf x {:seq :polyphonic
-                                      :start-x x
-                                      :data (if (and (not (instance? clojure.lang.LazySeq node))
-                                                     (odd? (count node)))
-                                              (repeating node 0)
-                                              node)})
+              (do (println "build-graph" n x-buf x node)
+                (build-graph n x-buf x {:seq :polyphonic
+                                        :start-x 0 ; TODO this is probably wrong in some cases
+                                        :data (if (and (not (instance? clojure.lang.LazySeq node))
+                                                       (odd? (count node)))
+                                                (repeating node 0)
+                                                (remove-past-from-sequence node x))}))
 
               (instance? CubicSplineFast (first node))
               (concat [(Sampler. (- x-buf x) (first node))]
@@ -181,7 +184,7 @@
                     new-actual (actual-fn (first old-fn))]
                 (if (not= actual new-actual)
                   (do (println x-buf x (:start-x node))
-                    (build-graph n x-buf (:start-x node) (execute (:start-x node) {:fn old-fn :start-x (:start-x node)})))
+                    (build-graph n x-buf x (execute (:start-x node) {:fn old-fn :start-x (:start-x node)})))
 
                   (let [processed-buffers (map (partial build-graph n x-buf x) (vals buffers))]
                     (when (some identity processed-buffers)
