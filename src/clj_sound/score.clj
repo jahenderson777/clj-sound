@@ -1,5 +1,5 @@
 (ns clj-sound.score
-  (:import Saw Sine MoogLP MoogHP MoogBP WavFile UGen)
+  (:import Saw Sine MoogLP MoogHP MoogBP WavFile UGen Dist)
   (:require [clj-sound.util :refer [defn*]]
             [clj-sound.db :as db]
             [clojure.string :as str]))
@@ -21,6 +21,7 @@
 (def oh (make-sampler "resources/909/tape1/oh01.wav"))
 (def cp (make-sampler "resources/909/tape1/cp01.wav"))
 (def lt (make-sampler "resources/909/tape1/lt01.wav"))
+(def vc (make-sampler "resources/the-year-is-1977.wav"))
 
 (defn a-synth [x freq]
   [* {0 1 50 0}
@@ -69,7 +70,7 @@
    :<- :b1})
 
 (defn* moog-synth [x freq]
-  [* 4 [MoogLP
+  [* 2 [MoogLP
         [*  0.8
          {0x00 0.8
           0x40 0.8
@@ -110,6 +111,10 @@
              (techno-loop* x (inc n))))))
 
 
+
+
+
+
 (defn* out [x]
   ['techno-loop 0])
 
@@ -117,22 +122,11 @@
   (println @db/db))
 
 (defn* bass-drum [x]
-  (println x (:graph @db/db))
-  (if (= 0x0000 (mod x 0x400))
-    [0x000 [* 4.4 [ch 0.2]]
-   ;  0x040 [* 2.4 [bd 1]]
-   ;  0x080 [* 4.4 [bd 1]]
-    ; 0x088 [debug]
-     0x160 [* 4.4 [bd 1]]
-     ]
-    #_[0x000 [* 4.4 [ch 0.2]]
-                                        ;  0x040 [* 2.4 [bd 1]]
-                                        ;  0x080 [* 4.4 [bd 1]]
-                                        ; 0x088 [debug]
-     0x160 [* 4.4 [bd 1]]
-     ]
-    ;[* 4.4 [bd 1]]
-    ))
+  (if (= 0x0f00 (mod x 0x1000))
+    [0x000 [* 4.4 [bd 1]]
+     0x080 [* 4.4 [bd 0.8]]
+     0x100 [* 2.4 [oh 0.1]]]
+    [* 4.4 [bd 1]]))
 
 #_(def bass-drum #'bass-drum*)
 
@@ -151,24 +145,15 @@
    0x450 [ch 1]])
 
 (defn* out [x]
-  [0x000 [bass-drum]
-   0x100 [bass-drum]
-   0x200 [bass-drum]
-   0x300 [bass-drum]
-   0x400 [bass-drum]
-   0x500 [bass-drum]
-   0x600 [bass-drum]
-  ; 0x00 [s1 21]
-  ; 0x40 [* 0.8 [ch 0.2]] 0x45 [ch 6.1]
-  ; 0x80 [moog-synth 28]  0x80 [oh 1]
-  ; 0xc7 [ch 6]
-  ; 0xc7 [* 1.3 [bd 0.8]]
-  ; 0xd9 [moog-synth 18]
-  ; 0xf0 [* {0 0 0x34 0 0x40 1 0x100 1} [oh 0.2]]
-   ;0x100
-   ]
-
-  )
+  [0x00 [bass-drum]
+   0x00 [s1 15]
+   0x40 [* 0.8 [ch 0.4]] 0x45 [ch 6.1]
+   0x80 [moog-synth 28]  0x80 [oh 1]
+   0xc7 [ch 6]
+   0xc7 [* 1.3 [bd 0.8]]
+   0xd9 [moog-synth 18]
+   0xf0 [* {0 0 0x34 0 0x40 1 0x100 1} [oh 0.2]]
+   0x100])
 
 
 (defn* out [x]
@@ -178,7 +163,8 @@
                0xc7 [ch 6]
                0xd9 [moog-synth 18]
                0xf0 [oh 0.2]
-               0x100]
+               0x100
+           ]
    700
    0.7
    ])
@@ -190,8 +176,9 @@
    0.9])
 
 (defn* a [x]
-  [0x000 [MoogHP [ch 0.1]
-          (+ (rand-int 200) 800) 0.6]
+  [0x000 [* {0 1 0x10 1 0x200 0}
+          [MoogHP [ch 0.2]
+           (+ (rand-int 200) 800) 0.6]]
    0x060 [ch 6]
    0x170 [MoogLP [lt 2.2]
           300 0.4]])
@@ -292,6 +279,136 @@
    0xd00 [lt 1]
    0xe00 [lt 1]
    0xf00 [lt 1]])
+
+
+
+
+
+
+
+
+
+(defn lfo [low high freq]
+  [+ (/ (+ low high) 2)
+   [* (/ (- high low) 2)
+    [Sine freq]]])
+
+
+(defn* hhs [x]
+  [* 0.3 [MoogHP [0x000 [ch 2]
+                  0x044 [ch 2]
+                  0x080 [ch 2]
+                  0x0c4 [ch 2]]
+          (lfo 1000 2000 0.3)
+          0.6]])
+
+(defn* sy [x f]
+  [* 1.3 [MoogLP
+        [* {0 1 0x010 1 0x060 0 0x080 0.5 0x0a0 0}
+         [+ [Saw f]
+          [* 0.3 [Saw (* f 1.98 (+ 1 (rand-int 2)))]]
+          [* 0.3 [Saw (* f 3.99 (+ 1 (rand-int 2)))]]]]
+        [+ 200 [* 5 {0 100 0x010 100 0x060 0 0x080 50 0x090 1000}]]
+        0.89]])
+
+
+(defn* clap [x]
+  (if (= 0 (mod x 0x200))
+    nil
+    [0 [cp 0.7]
+     0x040 [* 0.3 [cp 0.7]]]))
+
+(defn* toms [x]
+  [* 0.7 [MoogLP [0x000 [lt 1]
+                  0x040 [lt 1.5]
+                  0x080 [lt 0.75]
+                  0x0c0 [lt 1.5]]
+          300
+          0.5]])
+
+(defn* l [x]
+  [0x000 [* 3 [bd {0 2 4 1 0x100 1}]]
+   0x000 [hhs]
+   0x000 [toms]
+   0x000 [clap]
+   0x040 [sy 12]
+   0x080 [ch 3] 0x080 [sy 16]
+   0x0c0 [sy 12]
+   0x0C0 [lt 0.1]
+   0x100])
+
+(defn* sw [x f]
+  [* 0.2 [Dist [MoogLP [Dist [* {0 0.1 30 1 0x100 0}
+                              [Sine f]]
+                        1.36]
+                [* {0 580
+                    (+ (rand-int 10) 0x16) 370
+                    0x0c0 60
+                    0x100 130} :b1]
+                0.9]
+          0.5]])
+
+(defn* lts [x f]
+  [MoogHP [0x000 [lt (* f 1.25)]
+           0x047 [lt (* f 1.5)]
+           0x0c8 [lt (* f 1.75)]]
+   (+ (rand-int
+       50) 250)
+   0.3])
+
+(defn* hsw [x]
+  (cond
+    (= 0x7F00 (mod x 0x8000))
+    [0x80 [* 4 [bd 0.7]]]
+
+    (= 0 (mod x 0x8000))
+    [* 3 [vc 0.4]]
+
+    (= 0 (mod x 0x2000))
+    [* 0.7 [ch 0.35]]
+
+    (= 0 (mod x 0x4000))
+    [0 [sw 300]
+     0x70 [sw 333]
+     0x80 [sw 277]
+     0x140 [sw 211]
+     0x240 [sw (* 211 (+ 1 (rand-int 4)))]]))
+
+(defn* l [x]
+  [0x000 [* 3 [bd 0.8]]
+   0x000 [hhs] 0x00 [clap]
+   0x000 [hsw]
+   0x040 [lts 2.3]
+   0x060 [sw 100]
+   0x080 [lt 1.4] 0x080 [oh 1]
+   0x080 [sw 201]
+   0x0c0 [* {0 1 10 1 0x170 0} [oh 0.18]]
+   0x100])
+
+(defn* out [x]
+  {:b1 (lfo 1 13 0.01)
+   :<- [* 4 [l]]})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ;; 8r025 = 1/3 beat (21.33)

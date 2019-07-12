@@ -79,7 +79,6 @@
 (declare build-graph)
 
 (defn build-graph-seq [n x-buf x node]
-                                  ;   (println x-buf x )
   (let [updated
         (-> node
             (update
@@ -92,6 +91,7 @@
                    (if (nil? t*)
                      new-sequence
                      (let [t (long (* t* samples-per-tick))
+                           ;_ (println sequenced-node)
                            new-sequence2
                            (as-> sequenced-node $
                              (cond (< t (+ x1 n))
@@ -99,9 +99,7 @@
 
                                    :else
                                    $)
-                             (if $
-                               (concat new-sequence [t* $])
-                               $))]
+                             (concat new-sequence (when $ [t* $])))]
                        (if (or (not (seq? tail))
                                (>= t (+ x1 n)))
                          (concat new-sequence2 tail)
@@ -120,19 +118,17 @@
            (repeating s offset (+ n (last s))))))
 
 (defn remove-past-from-sequence [s x]
-  (doto (loop [[t* sequenced-node & tail] s
-               new-sequence []]
-          (let [t (long (* t* samples-per-tick))
-                new-sequence2
-                (if (< t x)
-                  new-sequence
-                  (conj new-sequence t* sequenced-node))]
-            (if (or (not (seq? tail))
-                    (>= t x))
-              (concat new-sequence2 tail)
-              (recur tail new-sequence2))))
-   ; (#(println x s %))
-    ))
+  (loop [[t* sequenced-node & tail] s
+         new-sequence []]
+    (let [t (long (* t* samples-per-tick))
+          new-sequence2
+          (if (< t x)
+            new-sequence
+            (conj new-sequence t* sequenced-node))]
+      (if (or (not (seq? tail))
+              (>= t x))
+        (concat new-sequence2 tail)
+        (recur tail new-sequence2)))))
 
 (defn build-graph
   "x-buf is the sample position of the start of the buffer.

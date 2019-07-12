@@ -11,9 +11,6 @@ public class MoogLP implements UGen {
         LP,
         BP
     }
-    // public float	audio;
-    // public float	frequency; // hz
-    // public float	resonance; // 0..1
     public Type type; //low pass, high pass, or band pass.
     private float[]	b;	// filter buffers (beware denormals!)
     public int sampleRate;
@@ -72,7 +69,7 @@ public class MoogLP implements UGen {
                 break;
 
             case LP:
-                out[i] = b[4];
+                out[i] = 3.0f * b[4];
                 break;
 
             case BP:
