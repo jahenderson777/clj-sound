@@ -1,6 +1,7 @@
 (ns clj-sound.score
   (:import Saw Sine MoogLP MoogHP MoogBP WavFile UGen)
   (:require [clj-sound.util :refer [defn*]]
+            [clj-sound.db :as db]
             [clojure.string :as str]))
 
 
@@ -112,9 +113,26 @@
 (defn* out [x]
   ['techno-loop 0])
 
+(defn* debug [x]
+  (println @db/db))
+
 (defn* bass-drum [x]
-  [* 4.4 [bd 1]
-   ])
+  (println x (:graph @db/db))
+  (if (= 0x0000 (mod x 0x400))
+    [0x000 [* 4.4 [ch 0.2]]
+   ;  0x040 [* 2.4 [bd 1]]
+   ;  0x080 [* 4.4 [bd 1]]
+    ; 0x088 [debug]
+     0x160 [* 4.4 [bd 1]]
+     ]
+    #_[0x000 [* 4.4 [ch 0.2]]
+                                        ;  0x040 [* 2.4 [bd 1]]
+                                        ;  0x080 [* 4.4 [bd 1]]
+                                        ; 0x088 [debug]
+     0x160 [* 4.4 [bd 1]]
+     ]
+    ;[* 4.4 [bd 1]]
+    ))
 
 #_(def bass-drum #'bass-drum*)
 
@@ -128,16 +146,27 @@
    0x0c0 [moog-synth (* f 7)] 0x0c0 [moog-synth (* f 12)]
    ])
 
+(defn* bass-drum2 [x]
+  [0x000 [bd 1]
+   0x450 [ch 1]])
+
 (defn* out [x]
-  [0x00 [bass-drum]
-   0x00 [s1 21]
-   0x40 [* 0.8 [ch 0.2]] 0x45 [ch 6.1]
-   0x80 [moog-synth 28]  0x80 [oh 1]
-   0xc7 [ch 6]
-   0xc7 [* 1.3 [bd 0.8]]
-   0xd9 [moog-synth 18]
-   0xf0 [* {0 0 0x34 0 0x40 1 0x100 1} [oh 0.2]]
-   0x100]
+  [0x000 [bass-drum]
+   0x100 [bass-drum]
+   0x200 [bass-drum]
+   0x300 [bass-drum]
+   0x400 [bass-drum]
+   0x500 [bass-drum]
+   0x600 [bass-drum]
+  ; 0x00 [s1 21]
+  ; 0x40 [* 0.8 [ch 0.2]] 0x45 [ch 6.1]
+  ; 0x80 [moog-synth 28]  0x80 [oh 1]
+  ; 0xc7 [ch 6]
+  ; 0xc7 [* 1.3 [bd 0.8]]
+  ; 0xd9 [moog-synth 18]
+  ; 0xf0 [* {0 0 0x34 0 0x40 1 0x100 1} [oh 0.2]]
+   ;0x100
+   ]
 
   )
 

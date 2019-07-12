@@ -64,7 +64,7 @@
     (var-get (ns-resolve (:ns m) (:name m)))))
 
 (defn execute [x {:keys [fn start-x]}]
-  (let [ret (apply (first fn) x (rest fn))]
+  (let [ret (apply (first fn) (long (Math/ceil (double (/ x samples-per-tick)))) (rest fn))]
     (-> (if (map? ret)
           ret
           {:<- ret})
@@ -270,7 +270,7 @@
         buf-len (/ buffer-size sample-rate 0.001)         ; in ms
         ]
     (when (< diff buf-len)
-      ;(Thread/sleep (int (* 1.3 (- buf-len diff))))
+      (Thread/sleep (int (* 1.7 (- buf-len diff))))
       )
     (vreset! old-buf-calc-time now))
 
