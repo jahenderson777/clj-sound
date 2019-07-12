@@ -5,7 +5,7 @@ import java.util.Arrays;
 //Modified by paul.kellett@maxim.abel.co.uk July 2000, jahenderson777@gmail.com 2019
 //Based on Java implementation by Damien Di Fede September 2010
 
-public class MoogFilter implements UGen {
+public class MoogLP implements UGen {
     public enum Type {
         HP,
         LP,
@@ -19,7 +19,7 @@ public class MoogFilter implements UGen {
     public int sampleRate;
     private int initialX = 0;
 
-    public MoogFilter(int initialX) {
+    public MoogLP(int initialX) {
         type = Type.LP;
         sampleRate = 48000;
         b = new float[5];

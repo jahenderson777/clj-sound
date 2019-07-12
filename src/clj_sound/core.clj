@@ -180,7 +180,7 @@
 
               (int? (first (first node)))
               (EnvPlayer. (- x-buf x)
-                          (double-array (keys node))
+                          (double-array (map (partial * samples-per-tick) (keys node)))
                           (double-array (vals node)))
 
               :else
@@ -190,7 +190,10 @@
                     old-fn (:fn others)
                     new-actual (actual-fn (first old-fn))]
                 (if (not= actual new-actual)
-                  (build-graph n x-buf (:start-x node) (execute (:start-x node) {:fn old-fn :start-x (:start-x node)}))
+                  (do (println "recompile detected")
+                      (def old-node node)
+                      (def new-node (build-graph n x-buf (:start-x node) (execute (:start-x node) {:fn old-fn :start-x (:start-x node)})))
+                      new-node)
 
                   (let [processed-buffers (map (partial build-graph n x-buf x) (vals buffers))]
                     (when (some identity processed-buffers)

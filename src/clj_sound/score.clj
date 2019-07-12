@@ -1,5 +1,5 @@
 (ns clj-sound.score
-  (:import Saw Sine MoogFilter WavFile)
+  (:import Saw Sine MoogLP MoogHP MoogBP WavFile)
   (:require [clj-sound.util :refer [defn*]]
             [clojure.string :as str]))
 
@@ -34,24 +34,25 @@
          1000 170
          10000 20}])
 
-(defn fm-synth [x freq]
-  [0 [* {0 1 15000 0.4 40000 0}
+(defn* fm-synth [x freq]
+  [0 [* {0 1 0x180 0.4 0x200 0}
       [Sine [+ :b01 (/ freq 1.5)]]]
-   15000 [Sine [+ freq
+   0x100 [Sine [+ freq
                    [* {0 99
-                       40000 (/ freq 2)
-                       200000 0}
-                    [Sine (* freq 3)]]]]
-   90000 [* {0 1 15000 0.4 40000 0}
+                       0x100 (/ freq 2)
+                       0x200 0}
+                    [Sine (* freq (+ 2 (rand-int 4)))]]]]
+   0x300 [* {0 1 0x80 0.4 0x100 0}
           [Sine (* freq 0.75)]]])
 
-(defn noise [x freq]
+(defn* noise [x freq]
   [* {0 (rand-int 4)
-      (+ 500 (* 1000 (rand-int 100))) 1
-      150000 0.8
-      200010 0}
-   [+ ['fm-synth freq]
-    ['drum]
+      (+ 0x20 (* 0x10 (rand-int 10))) 1
+      0x300 0.8
+      0x400 0}
+   [+ [fm-synth freq]
+    [fm-synth (* 0.5 freq)]
+    ;['drum]
     ]])
 
 (defn lazy-melody [x n]
@@ -67,20 +68,20 @@
    :<- :b1})
 
 (defn* moog-synth [x freq]
-  [* 4 [MoogFilter
+  [* 4 [MoogLP
         [*  0.8
-         {0 0.8
-          4000 0.8
-          15000 0}
+         {0x00 0.8
+          0x40 0.8
+          0x65 0}
          [+ [Saw freq]
           [Saw (* 2.05 freq)]]]
         [*
          (+ 1.5 (/ (rand-int 3) 7))
                                         ;:cutoff
-         {0 800
+         {0x00 800
                                         ;1000 6111
-          10000 210
-          20000 122}]
+          0x60 210
+          0x80 122}]
         0.76]])
 
 (defn* foo-melody [x n]
@@ -129,10 +130,11 @@
 
 (defn* out [x]
   [0x00 [bass-drum]
-   0x00 [s1 11]
+   0x00 [s1 21]
    0x40 [* 0.8 [ch 0.2]] 0x45 [ch 6.1]
    0x80 [moog-synth 28]  0x80 [oh 1]
    0xc7 [ch 6]
+   0xc7 [* 1.3 [bd 0.8]]
    0xd9 [moog-synth 18]
    0xf0 [oh 0.2]
    0x100]
@@ -141,7 +143,7 @@
 
 
 (defn* out [x]
-  [MoogFilter [0x00 [bass-drum]
+  [MoogLP [0x00 [bass-drum]
                0x40 [* 0.8 [ch 0.2]] 0x45 [ch 6.1]
                0x80 [moog-synth 28]  0x80 [oh 1]
                0xc7 [ch 6]
@@ -153,19 +155,47 @@
    ])
 
 (defn* out [x]
-  [MoogFilter [0x00 [bd 1]
+  [MoogLP [0x00 [bd 1]
                0x100]
    600
    0.9])
 
 (defn* a [x]
-  [0x000 [MoogFilter [ch 0.2]
-          (+ (rand-int 100) 600) 0.6]
+  [0x000 [MoogHP [ch 0.1]
+          (+ (rand-int 200) 800) 0.8]
    0x060 [ch 6]
-   0x170 [MoogFilter [lt 2.2]
+   0x170 [MoogLP [lt 2.2]
           300 0.4]])
 
+(defn* drums [x]
+  [0x000 [bass-drum]
+   0x080 [cp 2.5]
+   0x100 [bd 0.8]
+   0x140 [bass-drum]
+   0x180 [cp 2.5]])
 
+(defn* hihats [x]
+  [MoogHP [0x000 [oh 2]
+           0x044 [oh 2]
+           0x080 [oh 2.1]
+           0x0c4 [oh 2]
+           0x100 [oh 2]
+           0x144 [oh 2]
+           0x180 [oh 2.2]
+           0x1c4 [oh 2]]
+   (+ (rand-int 1000) 6000)
+   0.4])
+
+(defn* moogs [x]
+  [0x080 [* 4 [moog-synth 10]]
+   0x0c0 [* 4 [moog-synth 15]]
+   0x180 [* 4 [moog-synth 10]]
+   0x1c0 [* 4 [moog-synth 15]]])
+
+(defn* out [x]
+  [0x000 [noise 400] 0x000 [drums] 0x000 [hihats] 0x000 [moogs]
+   0x100 [a] 0x100 [* 4 [cp 1]]
+   0x200])
 
 (defn* out [x]
   [0x000 [bass-drum] 0x000 [s1 12]
@@ -211,7 +241,7 @@
    0x400 [cp 1]
    0x500 [ch 1]
    0x600 [cp 1]
-   0x700 [ch 1]
+   0x700 [ch 0.1]
    0x800
    ])
 
