@@ -1,5 +1,5 @@
 (ns clj-sound.score
-  (:import Saw Sine MoogLP MoogHP MoogBP WavFile)
+  (:import Saw Sine MoogLP MoogHP MoogBP WavFile UGen)
   (:require [clj-sound.util :refer [defn*]]
             [clojure.string :as str]))
 
@@ -78,11 +78,11 @@
         [*
          (+ 1.5 (/ (rand-int 3) 7))
                                         ;:cutoff
-         {0x00 800
+         {0x00 200
                                         ;1000 6111
-          0x60 210
+          0x10 910
           0x80 122}]
-        0.76]])
+        0.46]])
 
 (defn* foo-melody [x n]
   (lazy-seq
@@ -136,7 +136,7 @@
    0xc7 [ch 6]
    0xc7 [* 1.3 [bd 0.8]]
    0xd9 [moog-synth 18]
-   0xf0 [oh 0.2]
+   0xf0 [* {0 0 0x34 0 0x40 1 0x100 1} [oh 0.2]]
    0x100]
 
   )
@@ -162,7 +162,7 @@
 
 (defn* a [x]
   [0x000 [MoogHP [ch 0.1]
-          (+ (rand-int 200) 800) 0.8]
+          (+ (rand-int 200) 800) 0.6]
    0x060 [ch 6]
    0x170 [MoogLP [lt 2.2]
           300 0.4]])
@@ -190,11 +190,12 @@
   [0x080 [* 4 [moog-synth 10]]
    0x0c0 [* 4 [moog-synth 15]]
    0x180 [* 4 [moog-synth 10]]
-   0x1c0 [* 4 [moog-synth 15]]])
+   0x1c0 [* 4 [moog-synth 45]]])
 
 (defn* out [x]
-  [0x000 [noise 400] 0x000 [drums] 0x000 [hihats] 0x000 [moogs]
+  [0x000 [noise 400] 0x000 [drums] 0x000 [hihats] 
    0x100 [a] 0x100 [* 4 [cp 1]]
+   0x180 [moogs]
    0x200])
 
 (defn* out [x]

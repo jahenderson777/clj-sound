@@ -79,7 +79,7 @@
 (declare build-graph)
 
 (defn build-graph-seq [n x-buf x node]
-                            ;            (println x-buf x node)
+                                  ;   (println x-buf x )
   (let [updated
         (-> node
             (update
@@ -251,7 +251,10 @@
                   (apply (cond (= + (first node)) add-bufs
                                (= * (first node)) mul-bufs)
                          inputs)
-                  nil)))
+                  nil))
+
+              :else
+              (println "shouldn't get here" node))
 
         (instance? EnvPlayer node)
         (.process node n (make-array Float/TYPE 0 0))
@@ -274,6 +277,7 @@
   (reset! buffers {})
   (let [{:keys [x graph]} @db/db
         new-graph (perf-watch :build-graph #(build-graph buffer-size x x graph))
+        ;_ (swap! db/db assoc :graph new-graph)
         fa (perf-watch :process-node #(process-node buffer-size x new-graph))]
     (swap! db/db assoc
            :master-buf fa
