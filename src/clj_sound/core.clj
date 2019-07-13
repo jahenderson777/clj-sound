@@ -7,7 +7,7 @@
             [clojure.data.avl :as avl]
             [clojure.string :as str])
   (:import (javax.sound.sampled Mixer Mixer$Info AudioSystem DataLine$Info SourceDataLine AudioFormat AudioFormat$Encoding)
-           SimpleOsc WavFile UGen SoundUtil CubicSplineFast Player EnvPlayer Sampler)
+           SimpleOsc WavFile UGen SoundUtil CubicSplineFast Player EnvPlayer Sampler MidiHandler)
   (:gen-class))
 
 (set! *unchecked-math* true)
@@ -32,6 +32,8 @@
 (def buffers (atom {}))
 (def var-map (atom {}))
 
+(def cc (atom {}))
+
 (def perf (atom {}))
 (defn perf-watch [k f]
   (let [start-time (System/nanoTime)
@@ -43,6 +45,17 @@
                                                  exec-time
                                                  t)))
     ret))
+
+(defn ^java.util.function.Function as-function [f]
+  (reify java.util.function.Function
+    (apply [this arg] (f arg))))
+
+(defn midi-receive [ba]
+  (let [[msg ch val] (seq ba)]
+    (when (= msg -80)
+      (swap! cc assoc ch val))))
+
+(defonce midi-in (MidiHandler. "LPD8" (as-function midi-receive)))
 
 (defn unsigned-byte [x]
   (byte (if (> x 127) (- x 256) x)))
@@ -248,6 +261,14 @@
                                (= * (first node)) mul-bufs)
                          inputs)
                   nil))
+
+              (= :c (first node))
+              (let [[ch min max default] (rest node)
+                    m (/ (- max min) 127)
+                    v (or (get @cc ch)
+                          default
+                          0)]
+                (SoundUtil/filledBuf n (+ min (* v m))))
 
               :else
               (println "shouldn't get here" node))
