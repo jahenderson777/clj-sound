@@ -17,10 +17,15 @@
     (CubicSplineFast. xa ya)))
 
 (def bd (make-sampler "resources/909/tape1/bd01.wav"))
+(def bd2 (make-sampler "resources/909/tape1/bd04.wav"))
 (def ch (make-sampler "resources/909/tape1/cr01.wav"))
 (def oh (make-sampler "resources/909/tape1/oh01.wav"))
 (def cp (make-sampler "resources/909/tape1/cp01.wav"))
 (def lt (make-sampler "resources/909/tape1/lt01.wav"))
+(def hh (make-sampler "resources/909/tape1/hh01.wav"))
+(def rd (make-sampler "resources/909/tape1/rd01.wav"))
+(def rs (make-sampler "resources/909/tape1/rs01.wav"))
+(def sd (make-sampler "resources/909/tape1/sd01.wav"))
 (def vc (make-sampler "resources/the-year-is-1977.wav"))
 
 (defn a-synth [x freq]
@@ -402,6 +407,35 @@
 
 
 
+(defn* rd1 [x]
+  [MoogLP [* {0 0 0x30 0.1 0x31 0.3 0xc0 0} [rd 0.23]]
+   [:c 11 100 10000 8]
+   0.5])
+
+
+(defn* t [x]
+  [0x000 [* 2 [bd2 1]]
+   0x030 [rd1]
+   0x044 [* 0.1 [lt 3]]
+   0x080 [lt 3]
+   0x080 [hh 1.2] 0x080 [* 0.6 [oh 1]]
+   0x080 [* 0.1 [bd 1]]
+   0x0c3 [* 0.1 [bd 1]]
+   0x0c5 [hh 1.23]
+   0x100]
+  )
+
+
+
+
+
+
+
+
+
+(defn* out [x]
+  {:b1 [t]
+   :<- [* 2 [Dist :b1 1.0]]})
 
 
 
@@ -412,40 +446,22 @@
 
 
 
-;; 8r025 = 1/3 beat (21.33)
-;; 8r053 = 2/3 beat (42.66)
-;; 8r100 = 1 beat (64)
-;; 8r1000 = 1 bar (8 beats)
-;; 8r10000 = 8 bars (64 beats)
-;; 8r001 = 1/64 beat, 375 samples at 120bpm
-;; 375 = (/ sample-rate (/ bpm 60) 64)
-
-;; 0x53 = 1/3 beat (83.33)
-;; 0xab = 2/3 beat (170.6)
-;; 0x100 = 1 beat (256)
-;; 0x800 = 1 bar (8 beats) (2048)
-;; 8r10000 = 8 bars (64 beats)
-;; 8r001 = 1/64 beat, 375 samples at 120bpm
-;; 93.75 = (/ sample-rate (/ bpm 60) 256)
-
-
-
-
-;; so process has to handle:
-;; maps, process buffers in order
-;; recur process on buffer values
-;; if a seq? and int? first key, process all the events until we get a t>x, mix all the results, somehow handle ended ugens
-;; if a seq? and UGen object or built-in fn first key, process all the args then (.process obj n input-buffers output-buffer)
-;; returns a buffer
-;; should we allow static float inputs, or should we always create buffers full of floats?
 
 
 
 
 
 
-;; somehow watch for re-compiles of node-fn's? and only re-execute if re-compiled?;; keep a registry of node-fn's mapping symbol to function, check this often, and if different, re-execute node-fn in running db
 
+
+
+
+
+
+
+
+
+  
 ;; if a sequenced event is in the past in the new one, but doesn't exist in the old one (matching by time & Class), remove it
 ;; any sequenced events that exist in the old one but not in the new one (matching by time=time & class=object), let them carry on,
 ;; if a sequenced event is in the near future in the new, but not in the old, mix it in 
@@ -453,43 +469,4 @@
 ;; any un-sequenced UGens/Events/Nodes that exist in the old but not the new, fade them out
 ;; any un-sequenced UGens/Events/Nodes that exist in the new but not the old, fade them in
 
-
-
-;; the nice thing about this was is that it is an easy and natural way to express the song
-;; the problem is that recompiling top level defn's that don't get run very won't change what's running
-;; like if we change the parameters to the reverb above, it will have no effect because 'out' only gets
-;; executed once at the beginning, or if we change the melody sequence this will have no effect
-;; we kind of need to re-evaluate the whole graph whenever we make a change
-;; and somehow match up what is playing with the result of the new evaluation
-;; if we swap the reverb for a compressor for example if would be nice if the playing melody sequence
-;; was just immediately re-routed through the compressor.
-
-;; the problem is we need to create stateful instances of ugens that change over time, but we want to describe everything in a pure way
-;; maybe we need some concept of static effect
-;; or maybe if we described all in data instead of functions, in one big data-structure, and we only had one datastructure,
-;; that we supplemented with the running state information, then we could swap a reverb for a compressor whilst it is running
-;; or what if
-
-(comment
-  {:fn ['out]
-   :x 1000
-   :b1 [0 {:fn ['melody 400]
-           :x 1000
-           :<- [0 {:fn ['a-synth freq]
-                   :x 1000
-                   :<- [mul
-                        {0 1 50 0}
-                        [Saw freq]]}
-                4 ['a-synth 200]]}
-        10 ['melody 300]]
-   :b2 [5 ['melody 200]
-        15 ['melody 500]]
-   :<- [Compressor [Reverb :b1]]}
-
-  {:fn ['out]
-   :b1 [0 ['melody 400]
-        10 ['melody 300]]
-   :b2 [5 ['melody 200]
-        15 ['melody 500]]
-   :<- [Compressor [Phaser :b1]]})
-
+ 

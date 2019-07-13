@@ -55,7 +55,7 @@
     (when (= msg -80)
       (swap! cc assoc ch val))))
 
-(defonce midi-in (MidiHandler. "LPD8" (as-function midi-receive)))
+(def midi-in (MidiHandler. "LPD8" (as-function midi-receive)))
 
 (defn unsigned-byte [x]
   (byte (if (> x 127) (- x 256) x)))
