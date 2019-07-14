@@ -149,39 +149,37 @@
    partway through a buffer. It only really comes into play when constructing UGens."
   [n x-buf x node]
   (cond (or (instance? clojure.lang.LazySeq node) (list? node) (vector? node))
-        (cond (int? (first node))
-              (build-graph n x-buf x {:seq :polyphonic
-                                      :start-x x ; TODO not 100% sure about this
-                                      :data (if (and (not (instance? clojure.lang.LazySeq node))
-                                                     (odd? (count node)))
-                                              (repeating node (long (* (last node) (int (/ (/ (- x-buf x) samples-per-tick) (last node))))) 0)
-                                              (remove-past-from-sequence node (- x-buf x)))})
+        (let [g (first node)
+              build-inputs (fn [] (mapv #(build-graph n x-buf x %) (rest node)))]
+          (cond (int? g)
+                (build-graph n x-buf x {:seq :polyphonic
+                                        :start-x x
+                                        :data (if (and (not (instance? clojure.lang.LazySeq node))
+                                                       (odd? (count node)))
+                                                (repeating node (long (* (last node) (int (/ (/ (- x-buf x) samples-per-tick) (last node))))) 0)
+                                                (remove-past-from-sequence node (- x-buf x)))})
 
-              (instance? CubicSplineFast (first node))
-              (when (>= x x-buf)
-                (concat [(Sampler. (- x-buf x) (first node))]
-                        (mapv #(build-graph n x-buf x %) (rest node))))
+                (instance? CubicSplineFast g)
+                (when (>= x x-buf)
+                  (concat [(Sampler. (- x-buf x) g)] (build-inputs)))
 
-              (class? (first node))
-              (when (>= x x-buf)
-                (concat [(construct (first node) (- x-buf x))]
-                        (mapv #(build-graph n x-buf x %) (rest node))))
+                (class? g)
+                (when (>= x x-buf)
+                  (concat [(construct g (- x-buf x))] (build-inputs)))
 
-              (or (#{* +} (first node))
-                  (instance? UGen (first node)))
-              (if (and (instance? Sampler (first node))
-                       (.-ended (first node)))
-                nil
-                (let [inputs (mapv #(build-graph n x-buf x %) (rest node))]
-                  (if (or (and (not (= + (first node))) (some nil? inputs))
-                          (and (= + (first node)) (every? nil? inputs)))
-                    nil
-                    (concat [(first node)] inputs))))
+                (or (#{* +} g)
+                    (instance? UGen g))
+                (when-not (and (instance? Sampler g)
+                               (.-ended g))
+                  (let [inputs (build-inputs)]
+                    (when-not (or (and (not (= + g)) (some nil? inputs))
+                                  (and (= + g) (every? nil? inputs)))
+                      (concat [g] inputs))))
 
-              (var? (first node))
-              (build-graph n x-buf x (execute x {:fn node :start-x x}))
+                (var? g)
+                (build-graph n x-buf x (execute x {:fn node :start-x x}))
 
-              :else node)
+                :else node))
 
         (map? node)
         (cond (:seq node)
