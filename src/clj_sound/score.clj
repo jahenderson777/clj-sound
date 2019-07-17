@@ -478,9 +478,13 @@
 
 (defn* bl [x]
   [* 0.4 [Dist [MoogLP [0x000 [s2 10]
-                      0x040 [s2 15]
+                      0x080 [s2 15]
                       0x0c0 [s2 7.5]]
-              [:c 11 20 1000 100]
+                [* (if (< (mod x 0x1000) 0x100)
+                     (+ (rand-int 2) 1.1)
+                     1)
+                 (lfo 1 1.3 0.01)
+                 [:c 11 20 1000 100]]
               0.9]
         2]])
 
@@ -492,8 +496,19 @@
    0x0c0 [bd2 0.9]
    0x100])
 
-conrad james Henderson
+;conrad james Henderson
 
+(defn* bz [x]
+  [Dist [* {0 0.3 0x30 0.45 0xa0 1 0xc0 0}
+         [Sine {0 600 0x010 100 0x0c0 60}]]
+   1])
+
+(defn* out [x]
+  {:bd [0x000 [bz]
+        0x100]
+   :<- [+ :bd [0x000 [hh2] 0x000 [clap]
+               0x080 [bl]
+               0x100]]})
 
 
 
