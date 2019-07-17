@@ -200,6 +200,7 @@
                   (do (println "recompile detected")
                       (def old-node node)
                       (def new-node (build-graph n x-buf (:start-x node) (execute (:start-x node) {:fn old-fn :start-x (:start-x node)})))
+                      ;(println "here" (:start-x node)  new-node (execute (:start-x node) {:fn old-fn :start-x (:start-x node)}))
                       new-node)
 
                   (let [processed-buffers (map (partial build-graph n x-buf x) (vals buffers))]
@@ -337,7 +338,14 @@
 
 
 (comment
- 
+  (do (swap! db/db assoc :playing false)
+      (Thread/sleep 1000)
+      (swap! db/db assoc
+             :playing true
+             :x 0
+             :graph [score/out]))
+
+
   (ui/launch db/db)
 
   (make-sampler "resources/909/tape1/bd01.wav")
@@ -346,12 +354,7 @@
   (def da (double-array (* (.getNumChannels w) (.getNumFrames w))))
   (.readFrames w da (.getNumFrames w))
 
-  (do (swap! db/db assoc :playing false)
-      (Thread/sleep 1000)
-      (swap! db/db assoc
-             :playing true
-             :x 0
-             :graph [score/out]))
+  
   )
 
 

@@ -1,5 +1,5 @@
 (ns clj-sound.score
-  (:import Saw Sine MoogLP MoogHP MoogBP WavFile UGen Dist)
+  (:import Saw Sine MoogLP MoogHP MoogBP WavFile UGen Dist Reverb)
   (:require [clj-sound.util :refer [defn*]]
             [clj-sound.db :as db]
             [clojure.string :as str]))
@@ -456,13 +456,43 @@
         [sy1s]]})
 
 
+(def verb (Reverb. 0))
 
+(defn* out [x]
+  [verb [0x000 [lt 2.6132]
+         0x080 [bd2 0.9]
+         0x100]])
 
+(defn hit []
+  (rand-nth [hh oh sd rs]))
 
+(defn* hh2 [x]
+  [* {0 1 0x020 0.1 0x80 1 0x150 1}
+   [verb [0x000 [(hit) 1]
+          0x046 [(hit) 1]
+          0x080 [oh 1]
+          0x0c0 [(hit) 1]]]])
 
+(defn* s2 [x f]
+  [* {0 1 0x40 0.4 0x80 0} [Saw f]])
 
+(defn* bl [x]
+  [* 0.4 [Dist [MoogLP [0x000 [s2 10]
+                      0x040 [s2 15]
+                      0x0c0 [s2 7.5]]
+              [:c 11 20 1000 100]
+              0.9]
+        2]])
 
+(defn* out [x]
+  [0x000 [Dist [bd 1] 1.1]
+   0x000 [MoogHP [hh2] [:c 11 100 7000 100] 0.6]
+   0x040 [bl]
+   0x080 [bd2 0.8]
+   0x0c0 [bd2 0.9]
+   0x100])
 
+conrad james Henderson
 
 
 
