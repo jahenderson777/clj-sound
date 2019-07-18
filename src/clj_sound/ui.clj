@@ -5,9 +5,6 @@
            [javafx.scene.paint Color]
            [javafx.animation AnimationTimer]))
 
-(def *progress
-  (atom 0.3))
-
 (defn canvas-progress-bar [{:keys [level width height]}]
   {:fx/type :canvas
    :width width
@@ -46,7 +43,7 @@
              (when master-buf
                (loop [i 0]
                  (when (< i (/ (count master-buf) 8))
-                   (.lineTo ctx (* i 6) (+ 50 (* 10 (aget master-buf (* i 8)))))
+                   (.lineTo ctx (* i 8) (+ 50 (* 10 (aget master-buf (* i 8)))))
                    (recur (inc i)))))
                                         ;(.closePath ctx)
              (.stroke ctx))
@@ -58,33 +55,69 @@
                          (handle [now]
                            (draw-buffer canvas width height)))))))})
 
+
+(defn map-event-handler [e]
+  (case (:event/type e)
+    ::stop (swap! db/db assoc :playing nil)
+    ::play (swap! db/db assoc :playing true)
+    ::pause (swap! db/db assoc :playing nil)
+    ;::set-volume (swap! *state assoc :volume (:fx/event e))
+    (prn e)))
+
+(defn button [{:keys [text event-type]}]
+  {:fx/type :button
+   :text text
+   :pref-width 100
+   :on-action {:event/type event-type}})
+
+(defn root-view [{db :db}]
+  {:fx/type :stage
+   :showing true
+   :scene {:fx/type :scene
+           :stylesheets #{"style.css"}
+           :root {:fx/type :v-box
+                  :padding 100
+                  :spacing 50
+                  :alignment :center
+                  :children [{:fx/type canvas-scope
+                              :width 800
+                              :height 200
+                              :x (:x db)
+                              :master-buf (:master-buf db)
+                              }
+                             {:fx/type canvas-progress-bar
+                              :width 800
+                              :height 20
+                              :level (:level db)}
+                             #_{:fx/type :slider
+                              :pref-width 100
+                              :min 0
+                              :max 1
+                              :value 0  ;(:master-vol db)
+                              :on-value-changed #(swap! *progress %)}
+                             {:fx/type :h-box
+                              :padding 10
+                              :spacing 10
+                              :alignment :center
+                              :children [{:fx/type button
+                                          :text "Stop"
+                                          :event-type ::stop}
+                                         (if (:playing db)
+                                           {:fx/type button
+                                            :text "Pause"
+                                            :event-type ::pause}
+                                           {:fx/type button
+                                            :text "Play"
+                                            :event-type ::play})]}]}}})
+
 (def renderer
   (fx/create-renderer
-    :middleware
-    (fx/wrap-map-desc
-      (fn [db]
-        {:fx/type :stage
-         :showing true
-         :scene {:fx/type :scene
-                 :root {:fx/type :v-box
-                        :padding 100
-                        :spacing 50
-                        :children [{:fx/type canvas-scope
-                                    :width 800
-                                    :height 200
-                                    :x (:x db)
-                                    :master-buf (:master-buf db)
-                                    }
-                                   {:fx/type canvas-progress-bar
-                                    :width 800
-                                    :height 20
-                                    :level (:level db)}
-                                   {:fx/type :slider
-                                    :pref-width 100
-                                    :min 0
-                                    :max 1
-                                    :value 0 ;(:master-vol db)
-                                    :on-value-changed #(swap! *progress %)}]}}}))))
+   :opts {:fx.opt/map-event-handler map-event-handler}
+   :middleware
+   (fx/wrap-map-desc
+    (fn [db]
+      {:fx/type root-view
+       :db db}))))
 
 (defn launch [*db]
   (fx/mount-renderer *db renderer))
