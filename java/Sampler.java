@@ -13,7 +13,6 @@ public class Sampler implements UGen {
         lastX = cs.lastX();
     }
 
-
     public float[] process(int count, float[][] inputs) {
         float[] out = new float[count];
         float[] rate = inputs[0];

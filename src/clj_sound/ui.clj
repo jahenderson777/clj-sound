@@ -56,25 +56,23 @@
                          (handle [now]
                            (draw-buffer canvas width height)))))))})
 
-(defn canvas-graph [{:keys [graph width height]}]
+(defn canvas-graph [{:keys [graph-str-lines width height]}]
   {:fx/type :canvas
    :width width
    :height height
    :draw (fn [^Canvas canvas]
-           ;(println "a")
-           (let [lines (take 10 (str/split-lines (with-out-str (clojure.pprint/pprint graph))))
-                 ctx (doto (.getGraphicsContext2D canvas)
+                                        ;(println "a")
+           (let [ctx (doto (.getGraphicsContext2D canvas)
                        (.clearRect 0 0 width height)
-                       ;(.setLineWidth 1.0)
-                       ;(.strokeText (str x) 10 10)
-                       ;(.beginPath)
-                       ;(.moveTo 0 50)
+                                        ;(.setLineWidth 1.0)
+                                        ;(.strokeText (str x) 10 10)
+                                        ;(.beginPath)
+                                        ;(.moveTo 0 50)
                        (.setStroke Color/BLACK))]
              (loop [i 0]
-               (when (and (< i (count lines))
-                          (< i 5))
-                 (println (nth lines i))
-                 (.strokeText ctx (nth lines i) 10 (+ 10 (* i 20)))
+               (when (< i (count graph-str-lines))
+                                        ;(println (nth lines i))
+                 (.strokeText ctx (nth graph-str-lines i) 10 (+ 10 (* i 20)))
                  (recur (inc i))))))})
 
 
@@ -101,10 +99,15 @@
                   :padding 100
                   :spacing 50
                   :alignment :center
-                  :children [{:fx/type canvas-graph
+                  :children [#_{:fx/type canvas-graph
                               :width 800
                               :height 500
-                              :graph (:graph db)}
+                                        ;:graph (:graph db)
+                              :graph-str-lines (binding [*print-length* 10]
+                                                 (take 10 (str/split-lines
+                                                           (with-out-str
+                                                             (clojure.pprint/pprint (:graph db))))))
+                              }
                              {:fx/type canvas-scope
                               :width 800
                               :height 200
@@ -115,11 +118,11 @@
                               :height 20
                               :level (:level db)}
                              #_{:fx/type :slider
-                              :pref-width 100
-                              :min 0
-                              :max 1
-                              :value 0  ;(:master-vol db)
-                              :on-value-changed #(swap! *progress %)}
+                                :pref-width 100
+                                :min 0
+                                :max 1
+                                :value 0 ;(:master-vol db)
+                                :on-value-changed #(swap! *progress %)}
                              {:fx/type :h-box
                               :padding 10
                               :spacing 10

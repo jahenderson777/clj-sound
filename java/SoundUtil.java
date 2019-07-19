@@ -3,13 +3,14 @@ import javax.sound.sampled.*;
 
 public class SoundUtil {
     public static float[] sumBuffers(float[][] buffers) {
+        float[] buf = new float[buffers[0].length];
         int numBufs = buffers.length;
-        for (int n = 1; n < numBufs; n++) {
+        for (int n = 0; n < numBufs; n++) {
             for (int i = 0; i < buffers[0].length; i++) {
-                buffers[0][i] += buffers[n][i];
+                buf[i] += buffers[n][i];
             }
         }
-        return buffers[0];
+        return buf;
     }
 
     public static float[] multiplyBuffers(float[][] buffers) {

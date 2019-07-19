@@ -26,7 +26,7 @@
 
 (def buffer-size 800)
 (def player (agent 0))
-(def bpm 160)
+(def bpm 140)
 (def samples-per-tick (/ sample-rate (/ bpm 60) 256))
 
 (def buffers (atom {}))

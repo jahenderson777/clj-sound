@@ -533,18 +533,18 @@
 
 (defn* bz2 [x]
   [MoogLP [Dist [* {0 0.5 0x30 0.35 0xb0 1 0xc0 0}
-                 [Sine {0 670 0x010 85 0x0c0 55}]]
-           1.25
+                 [Sine {0 700 0x016 70 0x0c0 47}]]
+           1.0
            ;0
            ]
    {0 2000
     0x30 (+ 150 (rand-int 600))
-    0xc0 250}
+    0xc0 100}
    0.6])
 
 
 (defn* sds [x]
-  [0x000 [sd 1 2.0 (rand-int 1000)] 0 [rd 2.5]
+  [0x000 [sd 1 2.0 (rand-int 1000)] 0 [rd 1]
    0x046 [sd 1 1 (rand-int 2000)] 0x048 [moog-synth2 41]
    0x080 [sd 1 1 1000] 0x080 [hh]
    0x0c0 [moog-synth2 21]
@@ -570,8 +570,69 @@
 
 
 
+(defn* bz3 [x]
+  {:bd [MoogLP [Dist [* {0 0.5 0x30 0.55 0x70 0.6 0x90 0}
+                      [Sine {0 370 0x010 80 0x0c0 47}]]
+                1.0
+                                        ;0
+                ]
+        {0 4000
+         0x20 230
+         0xc0 90}
+        0.6]
+   :<- :bd})
+
+(defn* b [x f]
+  [MoogLP [Dist [* {0 1
+                    0x10 1.15
+                    0x28 0.2}
+                 [Sine (/ f 1.4)]]
+           4.1]
+   {0 700
+    0x20 330
+    0x28 90}
+   0.6])
+
+(defn* hhs [x]
+  [0x000 [hh 1 1]
+   0x044 [hh 1 1 1300]
+   0x080 [hh 1 1]
+   0x0c4 [hh 1 1 400]])
+
+(defn r [a & [b]]
+  (+ (or b 0)
+     (rand a)))
+
+(defn m [x period offset node]
+  (when (= (if (neg? offset)
+             (+ period offset)
+             offset)
+           (mod x period))
+    node))
+
+(defn* l [x]
+  [0x000 [bz3] 0 [hhs] 0 [rd (+ 1 (/ (rand-int 10) 1000))]
+   0 (m x 0x200 0x100
+       [0x000 [cp 0.5 2]
+        0x070 [moog-synth2 20]
+        0x80 [lt 1 (r 0.31 1)]])
+   0x049 [b 300]
+   0x080 [hh 1] 0x80 [b 80] 0x80 [oh 1.2 0.8]
+   0x080 (m x 0x1000 -0x100 [+ [bz3] [ch 0.5]])
+   0x0c8 [b 90]])
 
 
+(defn* out [x]
+  [+ [0x000 [* {0 1.2 0x018 0.05 0x22 0.1 0xa0 1 0x1c0 1}
+             [* 1 [verb [l]]]]
+      0x100]
+   :bd])
+
+(defn* out [x]
+  [0 [bd 1]
+   0x80 [0x000 [hh 1]
+         0x180 [rd 1]]
+   0x100])
 
 
 
