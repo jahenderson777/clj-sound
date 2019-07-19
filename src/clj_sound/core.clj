@@ -161,7 +161,13 @@
 
                 (instance? CubicSplineFast g)
                 (when (>= x x-buf)
-                  (concat [(Sampler. (- x-buf x) g)] (build-inputs)))
+                  [(Sampler. (- x-buf x)
+                             g
+                             (nth node 2 1.0)
+                             (nth node 3 0))
+                   (if-let [speed (nth node 1 nil)]
+                     (build-graph n x-buf x speed)
+                     1.0)])
 
                 (class? g)
                 (when (>= x x-buf)
@@ -186,9 +192,10 @@
               (build-graph-seq n x-buf x node)
 
               (int? (first (first node)))
-              (EnvPlayer. (- x-buf x)
-                          (double-array (map (partial * samples-per-tick) (keys node)))
-                          (double-array (vals node)))
+              (when (>= x x-buf)
+                (EnvPlayer. (- x-buf x)
+                            (double-array (map (partial * samples-per-tick) (keys node)))
+                            (double-array (vals node))))
 
               :else
               (let [buffers (dissoc node :fn :start-x :actual-fn)

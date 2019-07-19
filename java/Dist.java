@@ -9,6 +9,7 @@ public class Dist implements UGen {
         shape = new CubicSplineFast(x, y);
     }
 
+
     public float[] process(int count, float[][] inputs) {
         float[] out = new float[count];
         float[] input = inputs[0];

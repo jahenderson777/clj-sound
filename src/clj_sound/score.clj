@@ -411,9 +411,9 @@
           1.5]])
 
 (defn* sy2 [x f]
-  [* 1.0 [Dist [MoogLP [* {0 3 1 3 0x30 0}
+  [* 2.0 [Dist [MoogLP [* {0 3 1 3 0x30 0}
                         [Saw {0 (+ f 100) 3 f 0x30 f}]]
-                [:c 12 180 9000 50]
+                [:c 12 180 9000 10]
                 0.9]
           1.5]])
 
@@ -513,6 +513,60 @@
 
 
 
+(defn* moog-synth2 [x freq]
+  [* 2 [MoogLP
+        [*  0.8
+         {0x00 0.8
+          0x40 0.8
+          0x65 0}
+         [+ [Saw freq]
+          [Saw (* 3.15 freq)]]]
+        [*
+         (+ 4.5 (/ (rand-int 5) 7))
+                                        ;:cutoff
+         {0x00 2100
+          0x03 1211
+          0x20 190
+          0x80 122}]
+        0.66]]
+  )
+
+(defn* bz2 [x]
+  [MoogLP [Dist [* {0 0.5 0x30 0.35 0xb0 1 0xc0 0}
+                 [Sine {0 670 0x010 85 0x0c0 55}]]
+           1.25
+           ;0
+           ]
+   {0 2000
+    0x30 (+ 150 (rand-int 600))
+    0xc0 250}
+   0.6])
+
+
+(defn* sds [x]
+  [0x000 [sd 1 2.0 (rand-int 1000)] 0 [rd 2.5]
+   0x046 [sd 1 1 (rand-int 2000)] 0x048 [moog-synth2 41]
+   0x080 [sd 1 1 1000] 0x080 [hh]
+   0x0c0 [moog-synth2 21]
+   0x0c6 [sd 1 1 (rand-int 2000)]
+   ])
+
+(defn* l [x]
+  [+ [sds]
+   (when (= 0x100 (mod x 0x200))
+     [0x000 [cp 1 2]
+      0x040 [moog-synth2 50]
+      0x140 [lt 2 2]
+      ])])
+
+(defn* out [x]
+  {:bd [0x000 [bz2]
+        0x100]
+   :<- [+ :bd
+        [0x000 [* {0 1.2 0x018 0.05 0x22 0.1 0xa0 1 0x150 1}
+               [verb [l]]
+                ]
+         0x100]]})
 
 
 
