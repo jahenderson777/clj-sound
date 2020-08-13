@@ -1,7 +1,6 @@
 (ns clj-sound.score
-  (:import Saw Sine MoogLP MoogHP MoogBP WavFile UGen Dist Reverb)
+  (:import Saw Sine MoogLP MoogHP MoogBP WavFile Dist Reverb)
   (:require [clj-sound.util :refer [defn*]]
-            [clj-sound.db :as db]
             [clojure.string :as str]))
 
 
@@ -116,14 +115,10 @@
              (techno-loop* x (inc n))))))
 
 
-
-
-
-
 (defn* out [x]
   ['techno-loop 0])
 
-(defn* debug [x]
+#_(defn* debug [x]
   (println @db/db))
 
 (defn* bass-drum [x]
@@ -559,14 +554,6 @@
       0x140 [lt 2 2]
       ])])
 
-(defn* out [x]
-  {:bd [0x000 [bz2]
-        0x100]
-   :<- [+ :bd
-        [0x000 [* {0 1.2 0x018 0.05 0x22 0.1 0xa0 1 0x150 1}
-               [verb [l]]
-                ]
-         0x100]]})
 
 
 
@@ -611,7 +598,7 @@
     node))
 
 (defn* l [x]
-  [0x000 [bz3] 0 [hhs] 0 [rd (+ 1 (/ (rand-int 10) 1000))]
+  [0x000 [bz3] ; 0 [hhs] 0 [rd (+ 1 (/ (rand-int 10) 1000))]
    0 (m x 0x200 0x100
        [0x000 [cp 0.5 2]
         0x070 [moog-synth2 20]
@@ -620,6 +607,24 @@
    0x080 [hh 1] 0x80 [b 80] 0x80 [oh 1.2 0.8]
    0x080 (m x 0x1000 -0x100 [+ [bz3] [ch 0.5]])
    0x0c8 [b 90]])
+
+;; seems to break when switch to this one
+(defn* out [x]
+  {:bd [0x000 [bz2]
+        0x100]
+   :<- [+ :bd
+        #_[0x000 [* {0 1.2 0x018 0.05 0x22 0.1 0xa0 1 0x150 1}
+                [verb [l]]]
+         0x100]]})
+
+(defn* out [x]
+  {:bd [0x000 [bd 1]
+        0x100]
+   :<- [+ :bd
+        [0x000 [* {0 1.2 0x018 0.05 0x22 0.1 0xa0 1 0x150 1}
+                  [verb [l]]
+                ]
+           0x100]]})
 
 
 (defn* out [x]
