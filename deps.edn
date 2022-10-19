@@ -1,0 +1,11 @@
+{:paths ["src" "resources" "target/classes"]
+ :deps {org.clojure/clojure {:mvn/version "1.11.1"}
+        cljfx/cljfx {:mvn/version "1.7.22"}
+        generateme/fastmath {:mvn/version "1.2.0"}
+        org.clojure/data.int-map {:mvn/version "0.2.4"}
+        org.clojure/data.avl {:mvn/version "0.1.0"}
+        overtone/osc-clj {:mvn/version "0.8.1"}}
+ 
+ :aliases {:build {:ns-default build
+                   :deps {io.github.clojure/tools.build {:git/tag "v0.8.3" :git/sha "0d20256"}}
+                   :jvm-opts ["-Dclojure.main.report=stderr"]}}}

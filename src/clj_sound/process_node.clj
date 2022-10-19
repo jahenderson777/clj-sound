@@ -7,7 +7,7 @@
 (def buffers (atom {}))
 
 (defn ordered-buses [m]
-  (into (sorted-map) (dissoc m :<- :fn :start-x)))
+  (into (sorted-map) (dissoc m :<- :fn :start-x :actual-fn)))
 
 (defn add-bufs [& bufs]
   (SoundUtil/sumBuffers (into-array (remove nil? bufs))))
@@ -37,8 +37,7 @@
                     0)]
           (SoundUtil/filledBuf n (+ min (* v m))))
 
-        :else
-        (println "shouldn't get here" node)))
+        :else (println "shouldn't get here" node)))
 
 (defn process-node-map [n x node]
   (if (:seq node)
@@ -65,7 +64,6 @@
       (process-node n x1 (:<- node)))))
 
 (defn process-node [n x node]
-  ;(println "process-node = " n x node)
   (cond (map? node)
         (process-node-map n x node)
 
@@ -80,3 +78,5 @@
 
         (keyword? node)
         (node @buffers)))
+
+(defn clear-buffers [] (reset! buffers {}))

@@ -19,8 +19,7 @@
 
 (defn queue
   ([] (clojure.lang.PersistentQueue/EMPTY))
-  ([coll]
-   (reduce conj clojure.lang.PersistentQueue/EMPTY coll)))
+  ([coll] (reduce conj clojure.lang.PersistentQueue/EMPTY coll)))
 
 (defn unsigned-byte [x]
   (byte (if (> x 127) (- x 256) x)))
@@ -30,3 +29,10 @@
             (bit-and 255)
             unsigned-byte)
        (range size)))
+
+(defn clamp [x min max]
+  (if (< x min)
+    min
+    (if (> x max)
+      max
+      x)))
