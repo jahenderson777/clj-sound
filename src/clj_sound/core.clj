@@ -9,8 +9,8 @@
   )
 
 (comment 
-  (engine/start-audio)
-
+  
   (reset! engine/graph [score/out])
+  (engine/start-audio) 
 
   )
